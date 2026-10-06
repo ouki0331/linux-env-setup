@@ -1,19 +1,9 @@
 #!/bin/bash
 
-# 备份工作环境脚本 (Backup script)
+echo "开始备份 Linux/WSL 工作环境..."
 
-echo "开始备份工作环境..."
-
-# 1. 备份 Homebrew 包 (确保已安装 brew)
-if command -v brew &> /dev/null; then
-    echo "备份 Homebrew 软件包..."
-    brew bundle dump --force --file=Brewfile
-    echo "Homebrew 软件包备份完成 (已生成 Brewfile)。"
-else
-    echo "未检测到 Homebrew，跳过。"
-fi
-
-# 2. 备份 VSCode 扩展 (确保已安装 code 命令)
+# 1. 备份 VSCode 扩展
+# WSL 环境下如果连接了 VSCode，也可以直接使用 code 命令
 if command -v code &> /dev/null; then
     echo "备份 VSCode 扩展..."
     code --list-extensions > vscode-extensions.txt
@@ -22,10 +12,18 @@ else
     echo "未检测到 VSCode cli (code 命令)，跳过。"
 fi
 
-# 3. 备份常用配置文件 (Dotfiles)
+# 2. 备份配置文件 (Dotfiles)
 echo "备份配置文件..."
 mkdir -p dotfiles
-[ -f ~/.zshrc ] && cp ~/.zshrc dotfiles/.zshrc && echo "已备份 ~/.zshrc"
-[ -f ~/.gitconfig ] && cp ~/.gitconfig dotfiles/.gitconfig && echo "已备份 ~/.gitconfig"
+# 常见的 Linux 配置文件列表，你可以根据需要随时追加
+for file in ~/.bashrc ~/.zshrc ~/.gitconfig ~/.tmux.conf ~/.vimrc ~/.profile; do
+    if [ -f "$file" ]; then
+        cp "$file" dotfiles/
+        echo "已备份 $file"
+    fi
+done
 
-echo "备份完成！请使用 git commit 保存更改。"
+echo "========================================"
+echo "备份完成！"
+echo "请记得检查 packages.txt 中是否需要手动添加新工具的名字。"
+echo "最后使用 git commit 提交所有更改即可。"

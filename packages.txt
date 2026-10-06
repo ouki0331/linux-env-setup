@@ -1,0 +1,15 @@
+# 此处填写你希望在任何 Linux 环境中都安装的通用工具名
+# 由于不同的发行版工具名称基本一致（例如 git, curl），你可以安全地把它们写在这里。
+# 以 # 开头的行会被忽略
+
+git
+curl
+wget
+zsh
+tmux
+vim
+tree
+jq
+htop
+unzip
+tar
