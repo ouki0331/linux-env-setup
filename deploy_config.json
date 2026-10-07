@@ -1,0 +1,18 @@
+{
+    "dummy_repo": {
+        "protocol": "ftp",
+        "host": "localhost",
+        "port": 2121,
+        "user": "testuser",
+        "pass": "password123",
+        "remote_dir": "/ftp_target"
+    },
+    "dummy_repo_sftp": {
+        "protocol": "sftp",
+        "host": "localhost",
+        "port": 2222,
+        "user": "testuser",
+        "pass": "password123",
+        "remote_dir": "/home/testuser/sftp_target"
+    }
+}
