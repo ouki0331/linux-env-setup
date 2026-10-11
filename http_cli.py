@@ -17,6 +17,7 @@ import ssl
 import sqlite3
 import mimetypes
 import uuid
+import base64
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -284,6 +285,7 @@ def run_wizard(current_project, last_config=None):
         ("PUT", "PUT"),
         ("DELETE", "DELETE"),
         ("PATCH", "PATCH"),
+        ("OPTIONS", "OPTIONS"),
         ("HEAD", "HEAD")
     ]
     def_m_idx = 0
@@ -303,17 +305,30 @@ def run_wizard(current_project, last_config=None):
 
     raw_url = prompt_input("请输入请求 URL (支持 {{var}} 占位符):", default=default_url)
     
-    # 3. 配置请求头 (Headers)
+    # 3. 配置请求头 (Headers) 与 身份认证 (Authentication)
     headers = {
         "User-Agent": "Interactive-CLI-HTTP/1.0",
         "Accept": "*/*"
     }
 
-    # 如果有 apiKey 或 token 变量，友好提示
-    if "token" in variables or "apiKey" in variables:
-        token_key = "token" if "token" in variables else "apiKey"
-        if prompt_yes_no(f"检测到变量 {{{{{token_key}}}}}，是否自动添加 Authorization 请求头？", default=True):
-            headers["Authorization"] = f"Bearer {{{{{token_key}}}}}"
+    # 身份认证配置 (支持 Basic Auth, Bearer Token)
+    auth_options = [
+        ("无认证 (默认)", "none"),
+        ("Bearer Token (JWT / API Token)", "bearer"),
+        ("Basic Auth (用户名 + 密码，自动 Base64 编码)", "basic")
+    ]
+    auth_choice = prompt_choice("配置身份认证 (Authentication):", auth_options, default_idx=0)
+    if auth_choice == "bearer":
+        def_token = "{{token}}" if "token" in variables else ("{{apiKey}}" if "apiKey" in variables else "")
+        token_val = prompt_input("请输入 Bearer Token (支持 {{var}}):", default=def_token)
+        if token_val:
+            headers["Authorization"] = f"Bearer {token_val}"
+    elif auth_choice == "basic":
+        u = prompt_input("请输入 Basic Auth 用户名:")
+        p = prompt_input("请输入 Basic Auth 密码:")
+        token_str = base64.b64encode(f"{u}:{p}".encode("utf-8")).decode("utf-8")
+        headers["Authorization"] = f"Basic {token_str}"
+        cprint(f"  ✅ 已生成 Basic 认证请求头 (Base64)", Color.GREEN)
 
     body_data = None
     body_type = "none"
@@ -525,7 +540,11 @@ def render_response(status_code, headers, body_bytes, elapsed_ms):
     print("="*50)
 
     cprint("响应头 (Response Headers):", Color.CYAN, bold=True)
-    important_headers = ["content-type", "date", "server", "set-cookie", "content-length", "location"]
+    important_headers = [
+        "content-type", "date", "server", "set-cookie", "content-length", "location",
+        "allow", "access-control-allow-methods", "access-control-allow-headers",
+        "access-control-allow-origin", "www-authenticate"
+    ]
     for k, v in headers.items():
         if k.lower() in important_headers:
             cprint(f"  {k}: {v}", Color.DIM)
