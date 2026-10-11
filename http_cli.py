@@ -23,6 +23,9 @@ import sqlite3
 import mimetypes
 import uuid
 import base64
+import shutil
+import subprocess
+from html.parser import HTMLParser
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -755,6 +758,64 @@ def execute_and_record(project_name, method, url, headers, body_type, body_conte
         except Exception as db_err:
             cprint(f"⚠️ Failed to log to SQLite: {db_err}", Color.RED)
 
+class TerminalHTMLRenderer(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.output = []
+        self.skip = False
+        self.curr_href = ''
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ['script', 'style', 'head', 'noscript']:
+            self.skip = True
+        elif tag in ['h1', 'h2', 'h3']:
+            self.output.append(f"\n{Color.BOLD}{Color.CYAN}# ")
+        elif tag in ['p', 'div']:
+            self.output.append("\n")
+        elif tag == 'li':
+            self.output.append(f"\n  {Color.GREEN}•{Color.RESET} ")
+        elif tag == 'a':
+            for k, v in attrs:
+                if k == 'href':
+                    self.curr_href = v
+        elif tag in ['br', 'hr']:
+            self.output.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in ['script', 'style', 'head', 'noscript']:
+            self.skip = False
+        elif tag in ['h1', 'h2', 'h3']:
+            self.output.append(f"{Color.RESET}\n")
+        elif tag == 'a':
+            if self.curr_href:
+                self.output.append(f" {Color.DIM}({self.curr_href}){Color.RESET}")
+            self.curr_href = ''
+
+    def handle_data(self, data):
+        if not self.skip:
+            clean = data.strip()
+            if clean:
+                self.output.append(data)
+
+def render_html_preview(html_str):
+    for engine, cmd in [
+        ('w3m', ['w3m', '-dump', '-T', 'text/html']),
+        ('lynx', ['lynx', '-dump', '-stdin']),
+        ('elinks', ['elinks', '-dump'])
+    ]:
+        if shutil.which(engine):
+            try:
+                proc = subprocess.run(cmd, input=html_str.encode('utf-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+                if proc.returncode == 0:
+                    return f"{Color.DIM}[Rendered via {engine}]{Color.RESET}\n" + proc.stdout.decode('utf-8', errors='ignore')
+            except Exception:
+                pass
+
+    parser = TerminalHTMLRenderer()
+    parser.feed(html_str)
+    rendered = "".join(parser.output).strip()
+    return f"{Color.DIM}[Rendered via Built-in Terminal Engine]{Color.RESET}\n" + rendered
+
 def render_response(status_code, headers, body_bytes, elapsed_ms):
     if 200 <= status_code < 300:
         s_color = Color.GREEN
@@ -783,15 +844,29 @@ def render_response(status_code, headers, body_bytes, elapsed_ms):
     try:
         body_str = body_bytes.decode("utf-8")
         snippet = body_str
-        try:
-            parsed = json.loads(body_str)
-            formatted_json = json.dumps(parsed, ensure_ascii=False, indent=2)
-            cprint(formatted_json, Color.WHITE)
-        except Exception:
-            if len(body_str) > 2000:
-                cprint(body_str[:2000] + f"\n... [Truncated, total length: {len(body_str)} chars]", Color.WHITE)
+
+        # Check if content is HTML
+        is_html = any("text/html" in str(v).lower() for k, v in headers.items() if k.lower() == "content-type")
+        if not is_html and body_str.lstrip().startswith(("<html", "<!doctype html", "<!DOCTYPE html")):
+            is_html = True
+
+        if is_html:
+            cprint("🌐 Terminal Webpage Preview (Rendered HTML):", Color.MAGENTA, bold=True)
+            preview = render_html_preview(body_str)
+            if len(preview) > 3000:
+                cprint(preview[:3000] + f"\n... [Truncated, total length: {len(preview)} chars]", Color.WHITE)
             else:
-                cprint(body_str, Color.WHITE)
+                cprint(preview, Color.WHITE)
+        else:
+            try:
+                parsed = json.loads(body_str)
+                formatted_json = json.dumps(parsed, ensure_ascii=False, indent=2)
+                cprint(formatted_json, Color.WHITE)
+            except Exception:
+                if len(body_str) > 2000:
+                    cprint(body_str[:2000] + f"\n... [Truncated, total length: {len(body_str)} chars]", Color.WHITE)
+                else:
+                    cprint(body_str, Color.WHITE)
     except UnicodeDecodeError:
         snippet = f"<binary {len(body_bytes)} bytes>"
         cprint(f"<Binary content or unknown encoding, size: {len(body_bytes)} bytes>", Color.YELLOW)
