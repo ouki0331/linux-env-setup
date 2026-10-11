@@ -4,6 +4,7 @@
 - 零第三方依赖：纯 Python 3 原生库 (urllib, sqlite3, ssl, json)
 - 状态持久化：内置 SQLite 数据库，全生命周期记录请求参数、响应指标、时间与频次
 - 项目与集合区分：按项目/文件夹归类管理请求
+- 环境变量与占位符：项目级共享变量 (如 {{baseUrl}}, {{apiKey}})，支持在 URL、Header、Body 中自动替换
 - 域名历史检索：按域名高效检索历史请求并支持一键回放
 - 多维参数与文件上传：支持 JSON、表单、XML，支持通过 Linux/WSL 文件路径上传文件
 """
@@ -62,6 +63,16 @@ def init_db():
             )
         """)
         conn.execute("""
+            CREATE TABLE IF NOT EXISTS project_variables (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_name TEXT NOT NULL,
+                var_key TEXT NOT NULL,
+                var_value TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(project_name, var_key)
+            )
+        """)
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS requests_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_name TEXT NOT NULL,
@@ -78,7 +89,6 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        # 默认项目
         conn.execute("INSERT OR IGNORE INTO projects (name) VALUES ('default')")
     conn.close()
 
@@ -100,6 +110,39 @@ def create_project(name):
         return False
     finally:
         conn.close()
+
+# 环境变量管理
+def get_project_variables(project_name):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT var_key, var_value FROM project_variables WHERE project_name = ?", (project_name,))
+    rows = cur.fetchall()
+    conn.close()
+    return {r['var_key']: r['var_value'] for r in rows}
+
+def set_project_variable(project_name, key, value):
+    conn = get_db()
+    with conn:
+        conn.execute("""
+            INSERT INTO project_variables (project_name, var_key, var_value)
+            VALUES (?, ?, ?)
+            ON CONFLICT(project_name, var_key) DO UPDATE SET var_value = excluded.var_value
+        """, (project_name, key.strip(), value.strip()))
+    conn.close()
+
+def delete_project_variable(project_name, key):
+    conn = get_db()
+    with conn:
+        conn.execute("DELETE FROM project_variables WHERE project_name = ? AND var_key = ?", (project_name, key.strip()))
+    conn.close()
+
+def apply_variables(text, variables):
+    """替换 {{var_name}} 占位符"""
+    if not text or not isinstance(text, str):
+        return text
+    for k, v in variables.items():
+        text = text.replace(f"{{{{{k}}}}}", v)
+    return text
 
 def save_request_history(project_name, method, url, headers, body_type, body_content,
                          status_code, elapsed_ms, resp_headers, resp_snippet):
@@ -202,21 +245,17 @@ def build_multipart_body(file_path_str, field_name="file", extra_fields=None):
 
     body_bytes = bytearray()
 
-    # 附加普通表单字段
     if extra_fields:
         for k, v in extra_fields.items():
             body_bytes.extend(f"--{boundary}\r\n".encode("utf-8"))
             body_bytes.extend(f'Content-Disposition: form-data; name="{k}"\r\n\r\n'.encode("utf-8"))
             body_bytes.extend(f"{v}\r\n".encode("utf-8"))
 
-    # 文件字段
     body_bytes.extend(f"--{boundary}\r\n".encode("utf-8"))
     body_bytes.extend(f'Content-Disposition: form-data; name="{field_name}"; filename="{filename}"\r\n'.encode("utf-8"))
     body_bytes.extend(f"Content-Type: {mime_type}\r\n\r\n".encode("utf-8"))
     body_bytes.extend(file_bytes)
     body_bytes.extend(b"\r\n")
-
-    # 结束边界
     body_bytes.extend(f"--{boundary}--\r\n".encode("utf-8"))
 
     content_type_header = f"multipart/form-data; boundary={boundary}"
@@ -229,6 +268,14 @@ def run_wizard(current_project, last_config=None):
     cprint("\n" + "="*50, Color.BLUE, bold=True)
     cprint(f"🌐 交互式 HTTP 请求向导 [当前项目: {current_project}]", Color.BLUE, bold=True)
     cprint("="*50, Color.BLUE, bold=True)
+
+    # 加载当前项目的环境变量
+    variables = get_project_variables(current_project)
+    if variables:
+        cprint("💡 当前项目可用环境变量 (输入 {{var}} 自动替换):", Color.YELLOW)
+        for vk, vv in variables.items():
+            masked_v = vv if len(vv) <= 30 else vv[:15] + "..." + vv[-6:]
+            cprint(f"   • {{{{{vk}}}}} ➔ {masked_v}", Color.DIM)
 
     # 1. 选择请求方式
     method_options = [
@@ -247,27 +294,32 @@ def run_wizard(current_project, last_config=None):
                 break
     method = prompt_choice("请选择请求方法 (HTTP Method):", method_options, default_idx=def_m_idx)
 
-    # 2. 输入 URL
-    default_url = (last_config.get("url") if last_config else None) or ("https://httpbin.org/get" if method == "GET" else "https://httpbin.org/post")
-    url = prompt_input("请输入请求 URL:", default=default_url)
-    if not url.startswith("http://") and not url.startswith("https://"):
-        if url.startswith("localhost") or url.startswith("127.0.0.1"):
-            url = "http://" + url
-        else:
-            url = "https://" + url
-        cprint(f"  ℹ️ 已自动补全协议: {url}", Color.DIM)
+    # 2. 输入 URL (智能预填 baseUrl)
+    base_url_var = "{{baseUrl}}" if "baseUrl" in variables else None
+    if base_url_var:
+        default_url = (last_config.get("url") if last_config else None) or f"{base_url_var}/api/test"
+    else:
+        default_url = (last_config.get("url") if last_config else None) or ("https://httpbin.org/get" if method == "GET" else "https://httpbin.org/post")
 
+    raw_url = prompt_input("请输入请求 URL (支持 {{var}} 占位符):", default=default_url)
+    
     # 3. 配置请求头 (Headers)
     headers = {
         "User-Agent": "Interactive-CLI-HTTP/1.0",
         "Accept": "*/*"
     }
 
+    # 如果有 apiKey 或 token 变量，友好提示
+    if "token" in variables or "apiKey" in variables:
+        token_key = "token" if "token" in variables else "apiKey"
+        if prompt_yes_no(f"检测到变量 {{{{{token_key}}}}}，是否自动添加 Authorization 请求头？", default=True):
+            headers["Authorization"] = f"Bearer {{{{{token_key}}}}}"
+
     body_data = None
     body_type = "none"
-    body_content_record = ""
+    raw_body_content = ""
 
-    # 4. 请求体 (Body) 与 Content-Type 选择
+    # 4. 请求体 (Body) 与 Content-Type
     if method in ["POST", "PUT", "PATCH"]:
         body_type_options = [
             ("JSON 数据 (application/json)", "json"),
@@ -281,18 +333,12 @@ def run_wizard(current_project, last_config=None):
         if body_type == "json":
             headers["Content-Type"] = "application/json"
             default_body = (last_config.get("body_content") if last_config and last_config.get("body_type") == "json" else '{"msg": "hello"}')
-            body_input = prompt_input("请输入 JSON 内容:", default=default_body)
-            body_data = body_input.encode("utf-8") if body_input else None
-            body_content_record = body_input
-
+            raw_body_content = prompt_input("请输入 JSON 内容 (支持 {{var}}):", default=default_body)
         elif body_type == "form":
             headers["Content-Type"] = "application/x-www-form-urlencoded"
-            cprint("请输入表单键值对 (格式: key=value，如 a=1&b=2):", Color.YELLOW)
+            cprint("请输入表单键值对 (支持 {{var}}，如 username=admin&token={{token}}):", Color.YELLOW)
             default_form = (last_config.get("body_content") if last_config and last_config.get("body_type") == "form" else 'username=admin&action=test')
-            form_input = prompt_input("表单数据:", default=default_form)
-            body_data = form_input.encode("utf-8") if form_input else None
-            body_content_record = form_input
-
+            raw_body_content = prompt_input("表单数据:", default=default_form)
         elif body_type == "xml":
             ct_choice = prompt_choice("请选择具体类型:", [("application/xml", "application/xml"), ("text/plain", "text/plain")], default_idx=0)
             headers["Content-Type"] = ct_choice
@@ -303,15 +349,12 @@ def run_wizard(current_project, last_config=None):
                 if line.strip() == "END":
                     break
                 lines.append(line)
-            body_str = "\n".join(lines)
-            body_data = body_str.encode("utf-8") if body_str else None
-            body_content_record = body_str
-
+            raw_body_content = "\n".join(lines)
         elif body_type == "file":
             cprint("📁 文件上传配置 (支持绝对路径如 /home/ouki/workspace/test.png):", Color.CYAN)
             file_path = prompt_input("请输入 Linux/WSL 本地文件路径:")
             upload_mode = prompt_choice("选择上传方式:", [
-                ("表单多部分上传 (multipart/form-data，标准接口常用)", "multipart"),
+                ("表单多部分上传 (multipart/form-data)", "multipart"),
                 ("原始二进制流 (binary / octet-stream)", "binary")
             ], default_idx=0)
 
@@ -320,7 +363,7 @@ def run_wizard(current_project, last_config=None):
                 try:
                     body_data, ct_header, fname = build_multipart_body(file_path, field_name=field_name)
                     headers["Content-Type"] = ct_header
-                    body_content_record = f"[file: {file_path}] (field: {field_name}, size: {len(body_data)}B)"
+                    raw_body_content = f"[file: {file_path}] (field: {field_name}, size: {len(body_data)}B)"
                     cprint(f"  ✅ 文件已打包: {fname} ({len(body_data)} 字节)", Color.GREEN)
                 except Exception as e:
                     cprint(f"  ❌ 文件处理失败: {e}，将使用空 Body", Color.RED)
@@ -331,23 +374,22 @@ def run_wizard(current_project, last_config=None):
                     with open(p, "rb") as f:
                         body_data = f.read()
                     headers["Content-Type"] = "application/octet-stream"
-                    body_content_record = f"[binary_file: {file_path}] ({len(body_data)}B)"
+                    raw_body_content = f"[binary_file: {file_path}] ({len(body_data)}B)"
                     cprint(f"  ✅ 二进制文件已加载: {p.name} ({len(body_data)} 字节)", Color.GREEN)
                 else:
                     cprint(f"  ❌ 文件不存在: {p}", Color.RED)
                     body_data = None
         else:
-            body_data = None
-            body_content_record = ""
+            raw_body_content = ""
     else:
         headers["Accept"] = "application/json, text/plain, */*"
 
     # 补充自定义 Header
-    cprint(f"\n当前预设请求头:", Color.DIM)
+    cprint(f"\n当前预设请求头 (支持 {{var}} 占位符):", Color.DIM)
     for k, v in headers.items():
         cprint(f"  • {k}: {v}", Color.DIM)
 
-    if prompt_yes_no("是否需要添加额外的请求头 (例如 Authorization, Token 等)？", default=False):
+    if prompt_yes_no("是否需要添加额外的请求头？", default=False):
         cprint("请输入请求头 (格式: Name: Value，直接按回车结束):", Color.YELLOW)
         while True:
             line = input("Header ❯ ").strip()
@@ -360,19 +402,39 @@ def run_wizard(current_project, last_config=None):
             else:
                 cprint("  ⚠️ 格式错误，请使用 'Key: Value' 格式", Color.RED)
 
-    # 5. 生成 cURL 预览 & 确认
-    curl_cmd = build_curl(method, url, headers, body_data)
+    # 5. 变量求值与解析 (Interpolation)
+    actual_url = apply_variables(raw_url, variables)
+    if not actual_url.startswith("http://") and not actual_url.startswith("https://"):
+        if actual_url.startswith("localhost") or actual_url.startswith("127.0.0.1"):
+            actual_url = "http://" + actual_url
+        else:
+            actual_url = "https://" + actual_url
+
+    actual_headers = {apply_variables(k, variables): apply_variables(v, variables) for k, v in headers.items()}
+    
+    if body_type in ["json", "form", "xml"] and raw_body_content:
+        actual_body_str = apply_variables(raw_body_content, variables)
+        body_data = actual_body_str.encode("utf-8")
+        recorded_body_content = actual_body_str
+    else:
+        recorded_body_content = raw_body_content
+
+    # 6. 生成 cURL 预览 & 概况卡片
+    curl_cmd = build_curl(method, actual_url, actual_headers, body_data)
     
     print("\n" + "-"*50)
     cprint("📋 即将发送的请求概况:", Color.MAGENTA, bold=True)
     cprint(f"Project: {current_project}", Color.WHITE)
     cprint(f"Method : {method}", Color.WHITE, bold=True)
-    cprint(f"URL    : {url}", Color.WHITE, bold=True)
+    if raw_url != actual_url:
+        cprint(f"URL    : {raw_url}  ➔  {actual_url}", Color.WHITE, bold=True)
+    else:
+        cprint(f"URL    : {actual_url}", Color.WHITE, bold=True)
     cprint("Headers:", Color.WHITE)
-    for k, v in headers.items():
+    for k, v in actual_headers.items():
         cprint(f"  {k}: {v}", Color.DIM)
-    if body_content_record:
-        preview = body_content_record[:250] + ("..." if len(body_content_record) > 250 else "")
+    if recorded_body_content:
+        preview = recorded_body_content[:250] + ("..." if len(recorded_body_content) > 250 else "")
         cprint(f"Body   : ({body_type}) {preview}", Color.CYAN)
     print("-"*50)
     cprint(f"等效 cURL: {curl_cmd}", Color.DIM)
@@ -382,8 +444,8 @@ def run_wizard(current_project, last_config=None):
         cprint("已取消发送。", Color.YELLOW)
         return
 
-    # 6. 执行请求并记录到 SQLite
-    execute_and_record(current_project, method, url, headers, body_type, body_content_record, body_data)
+    # 7. 执行请求并记录
+    execute_and_record(current_project, method, actual_url, actual_headers, body_type, recorded_body_content, body_data)
 
 def build_curl(method, url, headers, body_data):
     parts = ["curl", "-X", method, f"'{url}'"]
@@ -432,7 +494,6 @@ def execute_and_record(project_name, method, url, headers, body_type, body_conte
         resp_snippet = f"Error: {e}"
         cprint(f"\n❌ 请求发生异常 ({elapsed_ms:.1f}ms): {e}", Color.RED, bold=True)
     finally:
-        # 持久化记录到 SQLite
         try:
             save_request_history(
                 project_name=project_name,
@@ -446,7 +507,7 @@ def execute_and_record(project_name, method, url, headers, body_type, body_conte
                 resp_headers=resp_headers,
                 resp_snippet=resp_snippet[:1000]
             )
-            cprint(f"💾 本次请求详情与频次已记入 SQLite 数据库 (~/.http_cli.db)", Color.DIM)
+            cprint(f"💾 本次请求已记入 SQLite 数据库 (~/.http_cli.db)", Color.DIM)
         except Exception as db_err:
             cprint(f"⚠️ 记录数据库失败: {db_err}", Color.RED)
 
@@ -490,6 +551,52 @@ def render_response(status_code, headers, body_bytes, elapsed_ms):
     return snippet
 
 # ==========================================
+# 环境变量管理
+# ==========================================
+def manage_variables_flow(current_project):
+    while True:
+        cprint("\n" + "="*50, Color.CYAN, bold=True)
+        cprint(f"⚙️  环境变量管理 [项目: {current_project}]", Color.CYAN, bold=True)
+        cprint("="*50, Color.CYAN, bold=True)
+
+        vars_dict = get_project_variables(current_project)
+        if vars_dict:
+            cprint("当前已定义的公共变量:", Color.GREEN)
+            for k, v in vars_dict.items():
+                cprint(f"  • {{{{{k}}}}} = {v}", Color.WHITE)
+        else:
+            cprint("当前项目暂未定义任何环境变量。", Color.DIM)
+
+        cprint("\n操作选项:", Color.CYAN)
+        options = [
+            ("添加 / 修改变量 (例如 baseUrl, apiKey)", "set"),
+            ("删除变量", "del"),
+            ("返回主菜单", "back")
+        ]
+        choice = prompt_choice("请选择操作:", options, default_idx=0)
+
+        if choice == "back":
+            break
+        elif choice == "set":
+            cprint("请输入变量名 (不需要大括号，例如 baseUrl 或 token):", Color.YELLOW)
+            key = prompt_input("变量 Key:")
+            if not key:
+                continue
+            val = prompt_input(f"请输入 {{{{{key}}}}} 的值:")
+            set_project_variable(current_project, key, val)
+            cprint(f"✅ 变量 {{{{{key}}}}} 已保存！", Color.GREEN, bold=True)
+        elif choice == "del":
+            if not vars_dict:
+                cprint("暂无可删除的变量。", Color.YELLOW)
+                continue
+            del_options = [(f"{{{{{k}}}}} = {v}", k) for k, v in vars_dict.items()]
+            del_options.append(("取消", None))
+            target_key = prompt_choice("选择要删除的变量:", del_options, default_idx=0)
+            if target_key:
+                delete_project_variable(current_project, target_key)
+                cprint(f"✅ 变量 {{{{{target_key}}}}} 已删除！", Color.GREEN, bold=True)
+
+# ==========================================
 # 历史记录检索与回放
 # ==========================================
 def view_history_flow(current_project):
@@ -523,7 +630,6 @@ def view_history_flow(current_project):
     if selected is None:
         return
 
-    # 展示详情
     cprint("\n" + "-"*50, Color.MAGENTA, bold=True)
     cprint(f"请求时间: {selected['created_at']} | 项目: {selected['project_name']}", Color.MAGENTA)
     cprint(f"URL     : {selected['method']} {selected['url']}", Color.WHITE, bold=True)
@@ -597,6 +703,7 @@ def main():
         main_options = [
             ("发起新 HTTP 请求 (向导模式)", "new_request"),
             ("浏览 / 按域名检索历史请求 (一键回放)", "history"),
+            ("管理当前项目环境变量 (API Key, Base URL 等)", "variables"),
             ("切换 / 新建项目与集合", "projects"),
             ("退出", "exit")
         ]
@@ -606,6 +713,8 @@ def main():
             run_wizard(current_project)
         elif action == "history":
             view_history_flow(current_project)
+        elif action == "variables":
+            manage_variables_flow(current_project)
         elif action == "projects":
             current_project = manage_projects_flow(current_project)
         elif action == "exit":

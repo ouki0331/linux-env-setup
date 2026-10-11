@@ -100,14 +100,18 @@
   4. **拉取式备份 (Pull-before-push)**: `deploy.py` 自动读取 `deploy_config.json` 映射的协议与账密，去服务器将旧代码原样拉回到本地 `remote_backup_xxx` 时间戳归档夹。
   5. **自动化覆盖**: 确认备份无误后自动推送新文件。
 
-### 7.3. 交互式向导型 CLI HTTP 调试工具 (Interactive HTTP Client)
-- **痛点**: `curl` 或 `HTTPie` 需要记忆长命令与复杂的语法参数；GUI 客户端 (Postman) 又太重且脱离终端工作流。
+### 7.3. 交互式向导型 CLI HTTP 调试与项目管理中枢 (http-cli / req)
+- **痛点**: `curl` 或 `HTTPie` 需记忆繁复参数；GUI 客户端 (Postman) 太重且脱离终端；缺乏类似 Postman 的项目集合隔离与环境变量能力。
 - **方案实现 (`http_cli.py`)**:
-  1. **纯原生零依赖**: 纯 Python 3 内置库 (`urllib`, `ssl`, `json`) 实现，无需 `pip install` 任何第三方包，在任意机器与环境拉取即用。
-  2. **向导式步进选择 (Wizard)**:
-     - 步进选择 HTTP Method（默认 GET，快速回车）。
-     - 输入 URL（自动补全 `http://` / `https://`）。
-     - 预设常用 Headers，并可选择常见的 Content-Type 或自定义请求头。
-     - POST/PUT 时引导选择 Body（单行 JSON、多行粘贴、读取本地文件或空 Body）。
-  3. **防呆确认卡片与 cURL 生成**: 发送前打印格式化请求概况卡片，并自动生成可复制的等效 cURL 指令。
-  4. **高亮响应与闭环操作**: 自动语法高亮格式化 JSON，展示耗时与状态码；请求后可一键再次发送、微调重发或新建请求。
+  1. **纯原生零依赖**: 纯 Python 3 内置库 (`urllib`, `sqlite3`, `ssl`, `json`) 实现，全平台无需 `pip install` 任何包。
+  2. **项目级环境变量与公共属性 (Environment Variables)**:
+     - 支持在项目内定义公共属性（如 `baseUrl`, `apiKey`, `token` 等）。
+     - 支持在 URL、Headers、Body 中使用 `{{var}}` 占位符自动解析求值（如 `{{baseUrl}}/api/v1`、`Authorization: Bearer {{token}}`）。
+  3. **SQLite 全生命周期存储**:
+     - 零配置持久化至 `~/.http_cli.db`。
+     - 记录每次调用的完整上下文：时间戳、频次、项目名、目标域名、参数类型独立归档 (JSON/Form/XML/File)、HTTP 状态码、耗时 (ms) 及响应快照。
+  4. **按域名历史检索与一键回放**:
+     - 支持按目标域名模糊检索历史调用，清晰还原当时的参数与返回，支持一键重放。
+  5. **项目与集合隔离**: 支持按不同系统/微服务创建项目并随时切换当前工作上下文。
+  6. **原生 Linux/WSL 文件上传**: 原生支持多部分表单 (`multipart/form-data`) 与二进制流，支持直接读取本地文件路径上传。
+  7. **开箱即用的全局快捷指令**: 在 `dotfiles/.zshrc` 和 `restore.sh` 中集成了 `req` 快捷指令。
