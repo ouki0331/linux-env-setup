@@ -54,7 +54,6 @@ def confirm_environment(protocol, host, user, remote_target_dir, real_pwd, files
         sys.exit(1)
 
 def ensure_remote_dir_ftp(ftp, root, rel_dir):
-    """递归创建 FTP 远程目录 (修复 N2)"""
     ftp.cwd(root)
     for d in PurePosixPath(rel_dir).parts:
         try:
@@ -65,7 +64,6 @@ def ensure_remote_dir_ftp(ftp, root, rel_dir):
     ftp.cwd(root)
 
 def ensure_remote_dir_sftp(sftp, root, rel_dir):
-    """递归创建 SFTP 远程目录"""
     sftp.chdir(root)
     for d in PurePosixPath(rel_dir).parts:
         try:
@@ -77,21 +75,24 @@ def ensure_remote_dir_sftp(sftp, root, rel_dir):
     sftp.chdir(root)
 
 def ftp_size_or_none(ftp, f):
-    """安全的 FTP 文件存在性与大小检查 (修复 N1)"""
     try:
         return ftp.size(f)
     except ftplib.error_perm as e:
-        if not str(e).startswith("550"):
+        err_str = str(e)
+        if not (err_str.startswith("550") or err_str.startswith("500") or err_str.startswith("502")):
             raise
         
         parent, name = os.path.split(f)
         try:
             names = [os.path.basename(n) for n in ftp.nlst(parent or ".")]
-        except ftplib.error_perm:
-            names = []
+        except ftplib.error_perm as nlst_e:
+            if "550" in str(nlst_e):
+                names = []
+            else:
+                raise RuntimeError(f"目录访问异常 (可能是权限不足): {parent}") from nlst_e
             
         if name in names:
-            raise RuntimeError(f"文件存在但无法取得大小 (550)，可能无权限或服务器问题: {f}") from e
+            raise RuntimeError(f"文件存在但无法取得大小，可能无权限或服务器问题: {f}") from e
         return None
 
 # ==========================================
@@ -99,20 +100,21 @@ def ftp_size_or_none(ftp, f):
 # ==========================================
 def process_ftp(conf, repo_path, file_list):
     backup_base = Path.home() / ".deploy_backups" / Path(repo_path).name / datetime.now().strftime('%Y%m%d_%H%M%S')
-    backup_base.mkdir(parents=True, exist_ok=True)
     manifest = {}
     uploaded = []
+    current_upload = None
 
     ftp = ftplib.FTP()
     try:
         ftp.connect(conf['host'], conf.get('port', 21), timeout=15)
         ftp.login(conf['user'], conf['pass'])
-        ftp.voidcmd("TYPE I") # 强制二进制模式，避免 ASCII 模式下 SIZE 被拒 (修复 N1)
+        ftp.voidcmd("TYPE I")
         
         ftp.cwd(conf['remote_dir'])
         real_pwd = ftp.pwd()
         
         confirm_environment("FTP", conf['host'], conf['user'], conf['remote_dir'], real_pwd, len(file_list))
+        backup_base.mkdir(parents=True, exist_ok=True)
 
         print("\n[1/2] 开始备份老文件 (FTP)...")
         for f in file_list:
@@ -127,31 +129,50 @@ def process_ftp(conf, repo_path, file_list):
             with open(dst, "wb") as local_f:
                 ftp.retrbinary(f"RETR {f}", local_f.write)
             
-            if dst.stat().st_size != size:
+            if size > 0 and dst.stat().st_size != size:
                 raise RuntimeError(f"🛑 备份校验失败 (大小不一致): {f}")
             print(f"✅ 成功备份: {f}")
             manifest[f] = "existing"
             
-        # 备份结束后立即写入 manifest (修复 N4)
         with open(backup_base / "manifest.json", "w") as mf:
             json.dump(manifest, mf, indent=2)
 
         print("\n[2/2] 备份完成，开始部署新文件 (FTP)...")
         for f in file_list:
+            current_upload = f
             local_src = Path(repo_path) / f
+            if not local_src.is_file():
+                continue
+                
             remote_dir = str(PurePosixPath(f).parent)
-            
             if remote_dir and remote_dir != ".":
                 ensure_remote_dir_ftp(ftp, real_pwd, remote_dir)
-                
+            
+            tmp_f = f"{f}.deploy_tmp"
             with open(local_src, "rb") as local_f:
-                ftp.storbinary(f"STOR {f}", local_f)
+                ftp.storbinary(f"STOR {tmp_f}", local_f)
+                
+            tmp_size = ftp_size_or_none(ftp, tmp_f)
+            if tmp_size is not None and tmp_size != local_src.stat().st_size:
+                raise RuntimeError(f"🛑 上传校验失败: {f}")
+                
+            try:
+                ftp.delete(f)
+            except: pass
+            
+            ftp.rename(tmp_f, f)
             print(f"🚀 成功上传: {f}")
             uploaded.append(f)
+            current_upload = None
             
-    except Exception as e:
+    except BaseException as e:
         print(f"\n❌ 部署中断: {e}")
         print("以下文件已成功上传: ", uploaded)
+        if current_upload:
+            print(f"⚠️ 状态未知的中断文件: {current_upload}")
+        if backup_base.exists():
+            with open(backup_base / "deploy_log.json", "w") as df:
+                json.dump({"uploaded": uploaded, "interrupted": current_upload}, df, indent=2)
         raise
     finally:
         try:
@@ -163,29 +184,28 @@ def process_ftp(conf, repo_path, file_list):
 
 def process_sftp(conf, repo_path, file_list):
     backup_base = Path.home() / ".deploy_backups" / Path(repo_path).name / datetime.now().strftime('%Y%m%d_%H%M%S')
-    backup_base.mkdir(parents=True, exist_ok=True)
     manifest = {}
     uploaded = []
+    current_upload = None
 
     ssh = paramiko.SSHClient()
-    ssh.load_system_host_keys() # 加载系统已知主机 (修复 N3)
-    ssh.set_missing_host_key_policy(paramiko.RejectPolicy()) # 默认拒绝未知主机
+    ssh.load_system_host_keys()
+    ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
     
     try:
         try:
             ssh.connect(hostname=conf['host'], port=conf.get('port', 22), username=conf['user'], password=conf.get('pass'), timeout=15)
         except paramiko.ssh_exception.SSHException as e:
             if "not found in known_hosts" in str(e):
-                print(f"⚠️  未知主机指纹: {conf['host']}。请先通过 ssh 登录一次以信任该主机，或者设置 --trust-new-host")
+                print(f"⚠️  未知主机指纹: {conf['host']}。请先通过 ssh 登录一次以信任该主机。")
             raise
             
         sftp = ssh.open_sftp()
-        
         sftp.chdir(conf['remote_dir'])
-        real_pwd = sftp.getcwd()
-        if not real_pwd: real_pwd = conf['remote_dir']
+        real_pwd = sftp.getcwd() or conf['remote_dir']
         
         confirm_environment("SFTP", conf['host'], conf['user'], conf['remote_dir'], real_pwd, len(file_list))
+        backup_base.mkdir(parents=True, exist_ok=True)
 
         print("\n[1/2] 开始备份老文件 (SFTP)...")
         for f in file_list:
@@ -208,25 +228,43 @@ def process_sftp(conf, repo_path, file_list):
             print(f"✅ 成功备份: {f}")
             manifest[f] = "existing"
             
-        # 备份结束后立即写入 manifest (修复 N4)
         with open(backup_base / "manifest.json", "w") as mf:
             json.dump(manifest, mf, indent=2)
 
         print("\n[2/2] 备份完成，开始部署新文件 (SFTP)...")
         for f in file_list:
+            current_upload = f
             local_src = Path(repo_path) / f
+            if not local_src.is_file():
+                continue
+                
             remote_dir = str(PurePosixPath(f).parent)
-            
             if remote_dir and remote_dir != ".":
                 ensure_remote_dir_sftp(sftp, real_pwd, remote_dir)
                 
-            sftp.put(str(local_src), f)
+            tmp_f = f"{f}.deploy_tmp"
+            sftp.put(str(local_src), tmp_f)
+            
+            if sftp.stat(tmp_f).st_size != local_src.stat().st_size:
+                raise RuntimeError(f"🛑 上传校验失败: {f}")
+                
+            try:
+                sftp.remove(f)
+            except IOError: pass
+            
+            sftp.posix_rename(tmp_f, f)
             print(f"🚀 成功上传: {f}")
             uploaded.append(f)
+            current_upload = None
 
-    except Exception as e:
+    except BaseException as e:
         print(f"\n❌ 部署中断: {e}")
         print("以下文件已成功上传: ", uploaded)
+        if current_upload:
+            print(f"⚠️ 状态未知的中断文件: {current_upload}")
+        if backup_base.exists():
+            with open(backup_base / "deploy_log.json", "w") as df:
+                json.dump({"uploaded": uploaded, "interrupted": current_upload}, df, indent=2)
         raise
     finally:
         try:
@@ -256,11 +294,13 @@ if __name__ == "__main__":
             if p.is_absolute() or ".." in p.parts:
                 raise ValueError(f"🛑 非法路径，禁止相对路径逃逸或绝对路径: {line}")
             
-            # 只统计真正存在的文件
-            if (repo_path / line).exists():
+            local_target = repo_path / line
+            if local_target.is_file():
                 actual_files.append(line)
+            elif local_target.is_dir():
+                print(f"⚠️ 忽略目录 (只处理文件): {line}")
             else:
-                print(f"⚠️ 忽略已删除/重命名的文件: {line}")
+                print(f"⚠️ 忽略已删除的文件: {line}")
                 
     if not actual_files:
         print("没有需要发布的有效文件。")
