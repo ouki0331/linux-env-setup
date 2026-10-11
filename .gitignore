@@ -4,3 +4,5 @@ deploy_backups/
 
 __pycache__/
 .http_cli.db
+.help_desk.db
+help_desk_ai_prompt.txt

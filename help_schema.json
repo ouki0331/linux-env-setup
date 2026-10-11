@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HelpDeskCatalogSchema",
+  "description": "Standard schema for AI-generated Japanese documentation for Linux packages and CLI commands.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "command",
+      "category",
+      "summary_ja",
+      "description_ja",
+      "syntax",
+      "options",
+      "examples"
+    ],
+    "properties": {
+      "command": {
+        "type": "string",
+        "description": "The exact name of the executable command or package (e.g. 'tar', 'w3m', 'req')"
+      },
+      "category": {
+        "type": "string",
+        "description": "Category in Japanese. Standard categories: 'ファイル操作・圧縮', 'ネットワーク・通信', '自作開発ツール', 'システム監視・プロセス', '開発・エディタ', 'モダンCLI拡張'"
+      },
+      "summary_ja": {
+        "type": "string",
+        "description": "Concise one-line summary in Japanese explaining the tool's core purpose"
+      },
+      "description_ja": {
+        "type": "string",
+        "description": "Comprehensive explanation in Japanese detailing what problem the tool solves and when to use it"
+      },
+      "syntax": {
+        "type": "string",
+        "description": "Standard command invocation syntax (e.g. 'tar [options] [archive] [target]')"
+      },
+      "options": {
+        "type": "array",
+        "description": "List of the most commonly used flags and parameters",
+        "items": {
+          "type": "object",
+          "required": ["flag", "desc_ja"],
+          "properties": {
+            "flag": {
+              "type": "string",
+              "description": "Option flag (e.g. '-c', '-xzvf', '--json')"
+            },
+            "desc_ja": {
+              "type": "string",
+              "description": "Clear explanation of this flag in Japanese"
+            }
+          }
+        }
+      },
+      "examples": {
+        "type": "array",
+        "description": "Practical, real-world everyday command examples",
+        "items": {
+          "type": "object",
+          "required": ["description_ja", "command"],
+          "properties": {
+            "description_ja": {
+              "type": "string",
+              "description": "What this specific example achieves in Japanese"
+            },
+            "command": {
+              "type": "string",
+              "description": "The exact copy-pasteable command invocation"
+            }
+          }
+        }
+      }
+    }
+  }
+}

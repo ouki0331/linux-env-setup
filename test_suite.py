@@ -164,5 +164,37 @@ rows = cur.fetchall()
 for r in reversed(rows):
     print(f"ID: {r['id']:<2} | {r['method']:<7} | Status: {r['status_code']:<3} | Elapsed: {r['elapsed_ms']:<6.1f}ms | Type: {r['body_type']:<6} | URL: {r['url']}")
 conn.close()
+
+# 10. Help Desk Automated Verification
+print("\n" + "="*60)
+print("📖 Verifying Help Desk CLI & Database Integration:")
 print("="*60)
-print("🎉 All integration tests completed successfully!")
+from help_desk import get_all_commands, get_command, get_categories, search_commands, generate_ai_prompt
+
+help_cmds = get_all_commands()
+print(f"Total documented tools: {len(help_cmds)}")
+assert len(help_cmds) >= 20, f"Expected at least 20 documented tools, got {len(help_cmds)}"
+
+tar_doc = get_command("tar")
+assert tar_doc is not None, "tar command should be documented"
+print(f"Verified command lookup: {tar_doc['command']} - {tar_doc['summary_ja']}")
+
+req_doc = get_command("req")
+assert req_doc is not None, "custom command 'req' should be documented"
+print(f"Verified custom command lookup: {req_doc['command']} - {req_doc['summary_ja']}")
+
+categories = get_categories()
+print(f"Categories ({len(categories)}): {[c['category'] for c in categories]}")
+assert len(categories) >= 4, "Expected at least 4 categories"
+
+search_res = search_commands("http")
+print(f"Search 'http' matches: {[r['command'] for r in search_res]}")
+assert any(r['command'] == "req" for r in search_res), "Search should find req"
+
+prompt_test = generate_ai_prompt(["nginx", "docker"])
+assert "nginx" in prompt_test and "docker" in prompt_test, "Prompt generator should include target packages"
+print("Verified AI Prompt generator output format.")
+
+print("="*60)
+print("🎉 All integration and Help Desk tests completed successfully!")
+

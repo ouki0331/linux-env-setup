@@ -1,0 +1,354 @@
+[
+  {
+    "command": "git",
+    "category": "開発・エディタ",
+    "summary_ja": "ソースコードの履歴管理を行う分散型バージョン管理システム",
+    "description_ja": "コードの変更履歴を記録し、複数人での共同開発や過去の状態への巻き戻し、ブランチを用いた並行開発を行うための業界標準ツールです。",
+    "syntax": "git <サブコマンド> [オプション] [引数]",
+    "options": [
+      { "flag": "status", "desc_ja": "作業ツリーとステージングエリアの状態を確認" },
+      { "flag": "add <パス>", "desc_ja": "変更をステージングエリア（コミット対象）に追加" },
+      { "flag": "commit -m '<メッセージ>'", "desc_ja": "ステージされた変更を記録" },
+      { "flag": "push", "desc_ja": "ローカルのコミットをリモートリポジトリへ送信" },
+      { "flag": "pull", "desc_ja": "リモートの最新コミットを取得して作業ブランチに統合" }
+    ],
+    "examples": [
+      { "description_ja": "変更状態を1行グラフ形式で分かりやすく確認する", "command": "git log --oneline --graph" },
+      { "description_ja": "特定ファイルの変更差分を確認する", "command": "git diff <ファイル名>" },
+      { "description_ja": "新規ブランチを作成して即座に切り替える", "command": "git checkout -b feature/new-login" }
+    ]
+  },
+  {
+    "command": "curl",
+    "category": "ネットワーク・通信",
+    "summary_ja": "URLを指定してサーバーとデータ送受信を行うコマンドラインHTTPツール",
+    "description_ja": "APIエンドポイントの疎通確認、ヘッダー情報の検査、ファイルのダウンロード、POSTリクエスト送信などをターミナルから直接実行できます。",
+    "syntax": "curl [オプション] <URL>",
+    "options": [
+      { "flag": "-I, --head", "desc_ja": "レスポンスヘッダーのみを取得して表示" },
+      { "flag": "-s, --silent", "desc_ja": "進行状況やエラーメーターを非表示にする（スクリプト向け）" },
+      { "flag": "-X <メソッド>", "desc_ja": "HTTPリクエストメソッド（GET, POST, PUT等）を指定" },
+      { "flag": "-H '<ヘッダー>'", "desc_ja": "カスタムHTTPヘッダーを指定" },
+      { "flag": "-d '<データ>'", "desc_ja": "HTTP POSTリクエストの本文データを送信" }
+    ],
+    "examples": [
+      { "description_ja": "Webサーバーのステータスコードとレスポンスヘッダーを確認する", "command": "curl -I https://httpbin.org/get" },
+      { "description_ja": "JSONデータをPOST送信する", "command": "curl -X POST https://httpbin.org/post -H 'Content-Type: application/json' -d '{\"user\":\"ouki\"}'" },
+      { "description_ja": "リダイレクトを自動追跡してファイルとして保存する", "command": "curl -L -o download.tar.gz https://example.com/archive.tar.gz" }
+    ]
+  },
+  {
+    "command": "wget",
+    "category": "ネットワーク・通信",
+    "summary_ja": "バックグラウンド実行や再帰ダウンロードに対応したファイルダウンローダー",
+    "description_ja": "HTTP/HTTPS/FTP経由でファイルを確実に取得します。回線切断時の自動リトライやレジューム（中断再開）機能が強力です。",
+    "syntax": "wget [オプション] <URL>",
+    "options": [
+      { "flag": "-c, --continue", "desc_ja": "部分的にダウンロードされたファイルの続きから再開" },
+      { "flag": "-O <ファイル名>", "desc_ja": "保存先のファイル名を指定" },
+      { "flag": "-b, --background", "desc_ja": "バックグラウンドでダウンロードを実行" },
+      { "flag": "-q, --quiet", "desc_ja": "進捗ログを出力しない静寂モード" }
+    ],
+    "examples": [
+      { "description_ja": "大容量ファイルを別名で保存する", "command": "wget -O setup.tar.gz https://example.com/large-file.tar.gz" },
+      { "description_ja": "中断したダウンロードを再開する", "command": "wget -c https://example.com/large-file.tar.gz" }
+    ]
+  },
+  {
+    "command": "zsh",
+    "category": "開発・エディタ",
+    "summary_ja": "強力なコマンド補完と拡張性を誇る高機能対話型シェル",
+    "description_ja": "Bashの上位互換として開発され、強力なパス補完、プラグイン機構、テーマ機能、スペル修正、共有コマンド履歴などを提供します。",
+    "syntax": "zsh [オプション] [スクリプトファイル]",
+    "options": [
+      { "flag": "-c <コマンド>", "desc_ja": "指定した文字列をコマンドとして実行して終了" },
+      { "flag": "-i", "desc_ja": "対話型シェルとして起動" }
+    ],
+    "examples": [
+      { "description_ja": "設定ファイルを再読み込みして最新の設定を反映する", "command": "source ~/.zshrc" },
+      { "description_ja": "デフォルトシェルをZshに変更する", "command": "chsh -s $(which zsh)" }
+    ]
+  },
+  {
+    "command": "tmux",
+    "category": "開発・エディタ",
+    "summary_ja": "SSH切断後もプロセスを維持できるターミナルマルチプレクサ",
+    "description_ja": "1つの端末ウィンドウ内で複数の仮想画面（ペイン）を縦横に分割したり、セッションをバックグラウンドに保持（デタッチ/アタッチ）できます。",
+    "syntax": "tmux [サブコマンド] [オプション]",
+    "options": [
+      { "flag": "new -s <セッション名>", "desc_ja": "名前付きの新規セッションを作成して開始" },
+      { "flag": "attach -t <セッション名>", "desc_ja": "既存のセッションに再接続（アタッチ）" },
+      { "flag": "ls", "desc_ja": "実行中のセッション一覧を表示" },
+      { "flag": "kill-session -t <名>", "desc_ja": "指定したセッションを終了" }
+    ],
+    "examples": [
+      { "description_ja": "新規セッション 'work' を立ち上げる", "command": "tmux new -s work" },
+      { "description_ja": "デタッチ（セッションを維持したまま抜ける）", "command": "Ctrl+b を押した後に d" },
+      { "description_ja": "既存の 'work' セッションに復帰する", "command": "tmux attach -t work" }
+    ]
+  },
+  {
+    "command": "vim",
+    "category": "開発・エディタ",
+    "summary_ja": "モーダル編集（ノーマル/挿入/コマンド）を採用した高機能CLIエディタ",
+    "description_ja": "GUIのないサーバー環境でも高速かつ効率的にファイルを編集できる、Linux標準の定番テキストエディタです。",
+    "syntax": "vim [オプション] <ファイルパス>",
+    "options": [
+      { "flag": "-R", "desc_ja": "読み取り専用（ReadOnly）モードで開く" },
+      { "flag": "+<行番号>", "desc_ja": "指定した行番号にカーソルを置いた状態で開く" }
+    ],
+    "examples": [
+      { "description_ja": "ファイルを編集する", "command": "vim config.yaml" },
+      { "description_ja": "保存して終了する", "command": ":wq (ノーマルモード時)" },
+      { "description_ja": "保存せずに強制終了する", "command": ":q! (ノーマルモード時)" }
+    ]
+  },
+  {
+    "command": "tree",
+    "category": "ファイル操作・圧縮",
+    "summary_ja": "ディレクトリとファイルの階層構造を視覚的なツリー図で表示するツール",
+    "description_ja": "プロジェクトの構成を把握したいときや、ドキュメント・README用にディレクトリ図を生成したいときに重宝します。",
+    "syntax": "tree [オプション] [ディレクトリパス]",
+    "options": [
+      { "flag": "-L <深さ>", "desc_ja": "表示する階層の最大深度を制限（例: -L 2）" },
+      { "flag": "-a", "desc_ja": "ドット（.）で始まる隠しファイルも含めてすべて表示" },
+      { "flag": "-d", "desc_ja": "ファイルを除外し、ディレクトリのみをツリー表示" },
+      { "flag": "-I '<パターン>'", "desc_ja": "指定したパターン（node_modules等）を除外" }
+    ],
+    "examples": [
+      { "description_ja": "深さ2階層までディレクトリ構造を表示する", "command": "tree -L 2" },
+      { "description_ja": "node_modulesとgitディレクトリを除外して表示する", "command": "tree -I 'node_modules|.git'" }
+    ]
+  },
+  {
+    "command": "jq",
+    "category": "システム監視・プロセス",
+    "summary_ja": "コマンドライン上でJSONデータを整形・抽出・変換する軽量プロセッサ",
+    "description_ja": "curlで取得したAPIレスポンスの色付け整形、特定キーの値の取り出し、配列のループ処理、マッピングなどを強力にサポートします。",
+    "syntax": "jq [オプション] '<フィルター式>' [ファイルまたは標準入力]",
+    "options": [
+      { "flag": ".", "desc_ja": "JSON全体をインデント付きカラー表示で整形（プリティプリント）" },
+      { "flag": "-r, --raw-output", "desc_ja": "文字列の前後のダブルクォートを取り除いてプレーンテキスト出力" },
+      { "flag": "-c, --compact-output", "desc_ja": "改行をなくし、1行のコンパクトなJSONとして出力" }
+    ],
+    "examples": [
+      { "description_ja": "curlのJSONレスポンスを見やすく整形する", "command": "curl -s https://httpbin.org/get | jq ." },
+      { "description_ja": "JSONから特定プロパティの値のみを取り出す", "command": "cat package.json | jq -r '.version'" },
+      { "description_ja": "配列要素の特定フィールドをリストアップする", "command": "cat data.json | jq '.[].name'" }
+    ]
+  },
+  {
+    "command": "htop",
+    "category": "システム監視・プロセス",
+    "summary_ja": "CPU・メモリ・スワップおよびプロセスを視覚的に監視・操作する対話型モニター",
+    "description_ja": "標準のtopコマンドより格段に見やすく、CPU各コアの使用率やメモリ消費、プロセスのツリー表示、F9キーでのシグナル送信（Kill）が可能です。",
+    "syntax": "htop [オプション]",
+    "options": [
+      { "flag": "-d <ミリ秒/10>", "desc_ja": "画面の更新インターバルを指定" },
+      { "flag": "-u <ユーザー名>", "desc_ja": "指定したユーザーのプロセスのみをフィルタリング表示" }
+    ],
+    "examples": [
+      { "description_ja": "インタラクティブモニターを起動する", "command": "htop" },
+      { "description_ja": "rootユーザーのプロセスのみを監視する", "command": "htop -u root" }
+    ]
+  },
+  {
+    "command": "unzip",
+    "category": "ファイル操作・圧縮",
+    "summary_ja": "ZIP形式で圧縮されたアーカイブファイルを展開・閲覧するユーティリティ",
+    "description_ja": "Windows等で作成された.zipファイルをLinux環境で解凍したり、解凍前に中身のファイルリストを確認できます。",
+    "syntax": "unzip [オプション] <zipファイル> [-d 出力先ディレクトリ]",
+    "options": [
+      { "flag": "-l", "desc_ja": "展開せずにZIPファイル内の一覧を表示（リストモード）" },
+      { "flag": "-d <パス>", "desc_ja": "展開先のディレクトリを指定（自動作成される）" },
+      { "flag": "-q", "desc_ja": "展開時のファイル名出力を抑制する静寂モード" },
+      { "flag": "-o", "desc_ja": "既存ファイルがある場合に警告なしで上書き" }
+    ],
+    "examples": [
+      { "description_ja": "ZIPファイルを特定ディレクトリに展開する", "command": "unzip archive.zip -d ./extracted_folder" },
+      { "description_ja": "解凍せずに中身のファイル構成を確認する", "command": "unzip -l archive.zip" }
+    ]
+  },
+  {
+    "command": "tar",
+    "category": "ファイル操作・圧縮",
+    "summary_ja": "複数ファイルのアーカイブ化およびgzip/bzip2/xzによる圧縮・解凍ツール",
+    "description_ja": "Linux環境におけるバックアップや配布ファイルのデファクトスタンダードです。.tar.gz や .tar.xz などの作成と展開を担います。",
+    "syntax": "tar [オプション] [アーカイブファイル名] [対象パス]",
+    "options": [
+      { "flag": "-c", "desc_ja": "新規アーカイブファイルを作成 (create)" },
+      { "flag": "-x", "desc_ja": "アーカイブファイルを展開・解凍 (extract)" },
+      { "flag": "-z", "desc_ja": "gzipアルゴリズムで圧縮/解凍 (.tar.gz)" },
+      { "flag": "-v", "desc_ja": "処理中のファイル名を詳細に画面表示 (verbose)" },
+      { "flag": "-f <ファイル名>", "desc_ja": "操作対象のアーカイブファイル名を指定" },
+      { "flag": "-C <パス>", "desc_ja": "展開先ディレクトリを指定して移動" }
+    ],
+    "examples": [
+      { "description_ja": "フォルダを .tar.gz 形式で圧縮する", "command": "tar -czvf my_backup.tar.gz ./my_project" },
+      { "description_ja": "圧縮アーカイブを現在のディレクトリに解凍する", "command": "tar -xzvf my_backup.tar.gz" },
+      { "description_ja": "解凍せずにアーカイブ内の一覧を確認する", "command": "tar -tzvf my_backup.tar.gz" }
+    ]
+  },
+  {
+    "command": "w3m",
+    "category": "ネットワーク・通信",
+    "summary_ja": "ターミナル上で動作する高速なテキストWebブラウザおよびHTMLページャー",
+    "description_ja": "C言語製でミリ秒単位で起動します。HTMLテーブルの罫線表示、ハイパーリンク、整形レンダリングに対応しており、APIレスポンスのプレビューにも最適です。",
+    "syntax": "w3m [オプション] [URLまたはHTMLファイル]",
+    "options": [
+      { "flag": "-dump", "desc_ja": "対話画面を開かず、標準出力に整形されたプレーンテキストを一括出力" },
+      { "flag": "-T <MIMEタイプ>", "desc_ja": "ドキュメントタイプを明示指定（例: -T text/html）" },
+      { "flag": "-cols <列数>", "desc_ja": "出力する行の折り返し文字幅を指定" }
+    ],
+    "examples": [
+      { "description_ja": "HTMLファイルをターミナルに美しく整形して表示する", "command": "w3m -dump page.html" },
+      { "description_ja": "curlのレスポンスHTMLをパイプで即時プレビューする", "command": "curl -s https://example.com | w3m -dump -T text/html" }
+    ]
+  },
+  {
+    "command": "req",
+    "category": "自作開発ツール",
+    "summary_ja": "SQLite履歴・変数・HTMLプレビュー対応の対話型CLI HTTPクライアント",
+    "description_ja": "curlのパラメータ指定の煩わしさを解消するウィザード形式のHTTPテストツールです。プロジェクト変数({{baseUrl}})、クエリパラメータ個別編集、レスポンスのw3m整形、直前リクエストのワンタッチ再送をサポートします。",
+    "syntax": "req [または http-cli]",
+    "options": [
+      { "flag": "(対話型)", "desc_ja": "数字キー（1-9）や 'b'（戻る）によるエンターキー不要の即時操作" },
+      { "flag": "{{var}}", "desc_ja": "プロジェクト変数（baseUrl, apiKey, token等）の自動置換" }
+    ],
+    "examples": [
+      { "description_ja": "対話型ウィザードを起動して新規リクエストを作成・送信する", "command": "req" },
+      { "description_ja": "ドメイン名で過去のリクエスト履歴を検索して即時再送する", "command": "req 起動後に [2] Search History を選択" }
+    ]
+  },
+  {
+    "command": "deploy.py",
+    "category": "自作開発ツール",
+    "summary_ja": "プルバックアップ・事前検証・アトミック転送対応の安全FTP/SFTPデプロイツール",
+    "description_ja": "サーバーサイドにGitがない旧来のFTP/SFTP環境において、アップロード前にリモートの旧ファイルを自動バックアップし、一時ディレクトリ経由で安全にファイル配備を行います。",
+    "syntax": "python3 deploy.py [または deploy]",
+    "options": [
+      { "flag": "deploy_config.json", "desc_ja": "接続先ホスト、認証情報、リモートパスを定義する設定ファイル" },
+      { "flag": "manifest.json", "desc_ja": "変更・追加・バックアップされたファイル一覧を記録する監査証跡" }
+    ],
+    "examples": [
+      { "description_ja": "事前検証画面を確認した上で安全デプロイを実行する", "command": "python3 deploy.py" }
+    ]
+  },
+  {
+    "command": "rollback.py",
+    "category": "自作開発ツール",
+    "summary_ja": "manifest.jsonに基づく自動復旧・ワンクリックロールバックツール",
+    "description_ja": "deploy.pyで生成された最新のmanifest.jsonを解析し、バックアップ済み旧ファイルを元に戻し、新規追加された不要ファイルを削除してデプロイ前の状態に完全復元します。",
+    "syntax": "python3 rollback.py [または deploy-rollback]",
+    "options": [
+      { "flag": "--manifest <パス>", "desc_ja": "復元対象の特定manifest.jsonを指定（未指定時は最新バックアップ）" }
+    ],
+    "examples": [
+      { "description_ja": "直前のデプロイを即座にロールバックして元に戻す", "command": "python3 rollback.py" }
+    ]
+  },
+  {
+    "command": "backup.sh",
+    "category": "自作開発ツール",
+    "summary_ja": "Linux/WSLのパッケージリスト・dotfiles・ワークスペース自動バックアップスクリプト",
+    "description_ja": "現在システムにインストールされているCLIパッケージ、VSCode拡張機能、~/.zshrc等の設定ファイルを抽出し、Gitコミット可能な形式で保存します。",
+    "syntax": "bash backup.sh",
+    "options": [],
+    "examples": [
+      { "description_ja": "現在の環境設定を一括バックアップする", "command": "bash backup.sh" }
+    ]
+  },
+  {
+    "command": "restore.sh",
+    "category": "自作開発ツール",
+    "summary_ja": "各種Linuxディストリビューションに対応した開発環境・自作CLI自動復元スクリプト",
+    "description_ja": "apt/dnf/pacman/zypper/apkを自動判定してパッケージを一括インストールし、dotfilesを展開した上で、reqやdeploy等の自作ツールを~/.local/binにセットアップします。",
+    "syntax": "bash restore.sh",
+    "options": [],
+    "examples": [
+      { "description_ja": "新規マシンやWSL上で環境の完全復元を実行する", "command": "bash restore.sh" }
+    ]
+  },
+  {
+    "command": "eza",
+    "category": "モダンCLI拡張",
+    "summary_ja": "カラー表示・Gitステータス・Nerd Fontsアイコン対応のモダンなls代替コマンド",
+    "description_ja": "Rust製で高速に動作し、ファイル種別ごとのカラフルなアイコン表示、拡張属性、権限、Gitステータスを一目で視認できる次世代ファイル一覧ツールです。",
+    "syntax": "eza [オプション] [パス]",
+    "options": [
+      { "flag": "-l, --long", "desc_ja": "詳細情報（権限・サイズ・更新日時等）を行形式で表示" },
+      { "flag": "-a, --all", "desc_ja": "隠しファイルも含めて表示" },
+      { "flag": "--icons", "desc_ja": "ファイル種別に応じたNerd Fontsアイコンを表示" },
+      { "flag": "--git", "desc_ja": "Git管理下ファイルのステージ・変更ステータスを付加表示" },
+      { "flag": "-T, --tree", "desc_ja": "ディレクトリを再帰的にツリー形式で表示" }
+    ],
+    "examples": [
+      { "description_ja": "アイコンとGitステータス付きで詳細一覧を表示する", "command": "eza -la --icons --git" },
+      { "description_ja": "ディレクトリをツリー表示する", "command": "eza -T --icons -L 2" }
+    ]
+  },
+  {
+    "command": "bat",
+    "category": "モダンCLI拡張",
+    "summary_ja": "シンタックスハイライト・Git差分・行番号表示対応のモダンなcat代替コマンド",
+    "description_ja": "あらゆるプログラミング言語の構文強調表示、Gitで変更された行のマーキング、lessスタイルの自動ページャー機能を備えた高機能ファイル閲覧ツールです。",
+    "syntax": "bat [オプション] <ファイルパス>",
+    "options": [
+      { "flag": "-p, --plain", "desc_ja": "行番号や枠線を非表示にし、標準のcatと同様の出力にする" },
+      { "flag": "-l <言語>", "desc_ja": "シンタックスハイライトの言語（python, json等）を明示指定" },
+      { "flag": "-n, --number", "desc_ja": "行番号のみを表示" }
+    ],
+    "examples": [
+      { "description_ja": "色付きで行番号・枠線付きでコードを閲覧する", "command": "bat config.json" },
+      { "description_ja": "パイプ処理用に装飾を省いて出力する", "command": "bat -p script.py" }
+    ]
+  },
+  {
+    "command": "fzf",
+    "category": "モダンCLI拡張",
+    "summary_ja": "高速・軽量なコマンドライン対話型インクリメンタル曖昧検索ファジーファインダー",
+    "description_ja": "ファイル一覧、コマンド履歴、Gitコミット、プロセス一覧などをタイプしながら瞬時に絞り込み、選択した結果を別のコマンドに渡すパイプラインを構築できます。",
+    "syntax": "fzf [オプション]",
+    "options": [
+      { "flag": "--preview '<コマンド>'", "desc_ja": "カーソルが当たっている項目の中身を横のプレビュー画面に表示" },
+      { "flag": "-m, --multi", "desc_ja": "Tabキーによる複数項目の同時選択を有効化" },
+      { "flag": "--reverse", "desc_ja": "検索バーを上部に配置して上から下にリスト表示" }
+    ],
+    "examples": [
+      { "description_ja": "カレントディレクトリからファイルを対話型検索して開く", "command": "vim $(fzf)" },
+      { "description_ja": "batによるリアルタイムプレビュー付きでファイルを検索する", "command": "fzf --preview 'bat --style=numbers --color=always {}'" }
+    ]
+  },
+  {
+    "command": "rg",
+    "category": "モダンCLI拡張",
+    "summary_ja": "ripgrep - .gitignoreを自動尊重し超高速にコード全文検索を行うgrep代替",
+    "description_ja": "Rust製の並列検索エンジンにより、巨大なリポジトリでも瞬時に文字列をヒットさせます。デフォルトで.gitignoreやバイナリファイルをスキップするため快適です。",
+    "syntax": "rg [オプション] '<検索パターン>' [検索対象パス]",
+    "options": [
+      { "flag": "-i, --ignore-case", "desc_ja": "大文字と小文字を区別せずに検索" },
+      { "flag": "-w, --word-regexp", "desc_ja": "単語全体に一致する場合のみヒット" },
+      { "flag": "-t <拡張子>", "desc_ja": "特定のファイルタイプ（例: -t py, -t js）のみを対象に検索" },
+      { "flag": "-g '<グロブ>'", "desc_ja": "対象ファイルパターンを指定（例: -g '*.md'）" }
+    ],
+    "examples": [
+      { "description_ja": "プロジェクト全体から特定の関数名を検索する", "command": "rg 'get_project_variables'" },
+      { "description_ja": "Pythonファイルのみを対象に大文字小文字無視で検索する", "command": "rg -i -t py 'execute_and_record'" }
+    ]
+  },
+  {
+    "command": "glow",
+    "category": "モダンCLI拡張",
+    "summary_ja": "ターミナル上でMarkdown文書を美しくレンダリングして閲覧するCLIビューアー",
+    "description_ja": "見出し、コードブロック、太字、リスト、テーブル、ハイパーリンクをターミナル内で装飾・整形して表示します。README.md の閲覧に最適です。",
+    "syntax": "glow [オプション] [ファイルパスまたはURL]",
+    "options": [
+      { "flag": "-p, --pager", "desc_ja": "長文ドキュメントをページャー（less風）でスクロール閲覧" },
+      { "flag": "-s <スタイル>", "desc_ja": "カラーテーマ（dark, light等）を指定" }
+    ],
+    "examples": [
+      { "description_ja": "README.md をページャー付きで綺麗に閲覧する", "command": "glow -p README.md" },
+      { "description_ja": "GitHubリポジトリのREADMEを直接閲覧する", "command": "glow github.com/charmbracelet/glow" }
+    ]
+  }
+]

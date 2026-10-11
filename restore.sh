@@ -64,6 +64,9 @@ mkdir -p ~/.local/bin
 [ -f "http_cli.py" ] && cp http_cli.py ~/.local/bin/http_cli.py && chmod +x ~/.local/bin/http_cli.py && ln -sf ~/.local/bin/http_cli.py ~/.local/bin/req && echo "Installed global CLI tool: req (http_cli.py)"
 [ -f "deploy.py" ] && cp deploy.py ~/.local/bin/deploy.py && chmod +x ~/.local/bin/deploy.py && echo "Installed deploy tool: deploy.py"
 [ -f "rollback.py" ] && cp rollback.py ~/.local/bin/rollback.py && chmod +x ~/.local/bin/rollback.py && echo "Installed rollback tool: rollback.py"
+[ -f "help_desk.py" ] && cp help_desk.py ~/.local/bin/help_desk.py && chmod +x ~/.local/bin/help_desk.py && ln -sf ~/.local/bin/help_desk.py ~/.local/bin/help-desk && ln -sf ~/.local/bin/help_desk.py ~/.local/bin/hdesk && echo "Installed Help Desk tool: help-desk (hdesk)"
+[ -f "sys_update.sh" ] && cp sys_update.sh ~/.local/bin/sys_update.sh && chmod +x ~/.local/bin/sys_update.sh && ln -sf ~/.local/bin/sys_update.sh ~/.local/bin/sys-update && echo "Installed update tool: sys-update (sys_update.sh)"
+[ -f "help_data_ja.json" ] && cp help_data_ja.json ~/.local/bin/help_data_ja.json && echo "Copied initial seed Help Desk catalog: help_data_ja.json"
 
 # 5. Terminal HTML preview engine verification
 if command -v w3m &> /dev/null; then

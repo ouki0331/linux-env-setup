@@ -20,6 +20,11 @@ alias http-cli="python3 ~/.local/bin/http_cli.py"
 alias deploy="python3 ~/.local/bin/deploy.py"
 alias deploy-rollback="python3 ~/.local/bin/rollback.py"
 
+# Personal Help Desk & System Update Tools
+alias help-desk="python3 ~/.local/bin/help_desk.py"
+alias hdesk="python3 ~/.local/bin/help_desk.py"
+alias sys-update="bash ~/.local/bin/sys_update.sh"
+
 # 4. Git shortcuts
 alias gs="git status"
 alias ga="git add"

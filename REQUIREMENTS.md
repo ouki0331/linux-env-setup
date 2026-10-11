@@ -107,3 +107,24 @@ Specialized tools built into the repository to enhance daily developer productiv
      - Persistently stores preferred rendering engine in SQLite `settings` table and auto-renders future HTML responses accordingly.
      - Provides an interactive post-response action menu to switch engines, immediately re-render, inspect raw HTML, or cleanly exit.
   8. **Global CLI Alias**: Integrated into `dotfiles/.zshrc` and `restore.sh` as `req` / `http-cli`.
+
+### 7.4. Personal CLI Help Desk & Incremental Update Trigger (help_desk.py / sys_update.sh)
+- **Problem**: Standard `man` pages and `--help` outputs are dense, text-heavy, mostly in English, and lack practical examples. Developers need a localized (Japanese) cheat-sheet catalog tailored exclusively to the tools they have installed, including custom scripts.
+- **Architecture**:
+  1. **Zero External Dependencies**: Pure Python 3 and SQLite (`~/.help_desk.db`) storing structured Japanese reference cards.
+  2. **Multi-dimensional Exploration**:
+     - Browse by Category (`ファイル操作・圧縮`, `ネットワーク・通信`, `自作開発ツール`, `システム監視・プロセス`, `開発・エディタ`, `モダンCLI拡張`).
+     - Browse Alphabetically (A-Z).
+     - Full-text keyword search across commands, Japanese summaries, descriptions, and option flags.
+     - Direct cheat card lookup: `help-desk <command>` (e.g. `help-desk tar` or `hdesk req`).
+  3. **Strict JSON Schema (`help_schema.json`)**: Formally defines the structure of command documentation (syntax, flags, practical examples).
+  4. **Incremental Web AI Prompt Generator**:
+     - Compares system/repo packages against Help Desk SQLite records.
+     - Extracts only incremental (undocumented or upgraded) packages to prevent redundant prompt tokens.
+     - Generates copy-pasteable prompt and schema for web AI (ChatGPT/Claude/Gemini).
+  5. **Batch Importer**: `help-desk --import <file.json>` imports AI-generated batches and refreshes the catalog instantly.
+  6. **Distro-Aware System Update Trigger (`sys_update.sh` / `sys-update`)**:
+     - Automatically identifies package manager (`dnf`, `apt-get`, `pacman`, `zypper`, `apk`, `brew`).
+     - Performs system upgrades and calculates which packages were upgraded.
+     - Interactively prompts to update the Help Desk and generates the AI prompt for incremental packages.
+  7. **Global CLI Aliases**: Integrated into `dotfiles/.zshrc` and `restore.sh` as `help-desk`, `hdesk`, and `sys-update`.
