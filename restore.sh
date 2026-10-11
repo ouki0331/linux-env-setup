@@ -61,5 +61,13 @@ else
     echo "未找到 dotfiles 目录，跳过配置文件的恢复。"
 fi
 
+# 4. 安装自定义 CLI 快捷工具到 ~/.local/bin
+echo "安装自定义 CLI 生产力工具..."
+mkdir -p ~/.local/bin
+[ -f "http_cli.py" ] && cp http_cli.py ~/.local/bin/http_cli.py && chmod +x ~/.local/bin/http_cli.py && ln -sf ~/.local/bin/http_cli.py ~/.local/bin/req && echo "已安装全局 CLI 命令: req / http_cli.py"
+[ -f "deploy.py" ] && cp deploy.py ~/.local/bin/deploy.py && chmod +x ~/.local/bin/deploy.py && echo "已安装部署命令: deploy.py"
+[ -f "rollback.py" ] && cp rollback.py ~/.local/bin/rollback.py && chmod +x ~/.local/bin/rollback.py && echo "已安装回滚命令: rollback.py"
+
 echo "========================================"
 echo "工作环境恢复完成！部分配置可能需要重新启动终端才能生效。"
+

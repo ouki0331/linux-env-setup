@@ -2,3 +2,4 @@ deploy_config.json
 deploy_backups/
 *remote_backup_*
 
+__pycache__/
