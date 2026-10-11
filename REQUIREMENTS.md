@@ -99,3 +99,15 @@
   3. **环境防呆确认 (Pre-flight)**: 连接远端后，强制打印协议、IP 和远端绝对路径，要求用户 `[y/N]` 二次确认。
   4. **拉取式备份 (Pull-before-push)**: `deploy.py` 自动读取 `deploy_config.json` 映射的协议与账密，去服务器将旧代码原样拉回到本地 `remote_backup_xxx` 时间戳归档夹。
   5. **自动化覆盖**: 确认备份无误后自动推送新文件。
+
+### 7.3. 交互式向导型 CLI HTTP 调试工具 (Interactive HTTP Client)
+- **痛点**: `curl` 或 `HTTPie` 需要记忆长命令与复杂的语法参数；GUI 客户端 (Postman) 又太重且脱离终端工作流。
+- **方案实现 (`http_cli.py`)**:
+  1. **纯原生零依赖**: 纯 Python 3 内置库 (`urllib`, `ssl`, `json`) 实现，无需 `pip install` 任何第三方包，在任意机器与环境拉取即用。
+  2. **向导式步进选择 (Wizard)**:
+     - 步进选择 HTTP Method（默认 GET，快速回车）。
+     - 输入 URL（自动补全 `http://` / `https://`）。
+     - 预设常用 Headers，并可选择常见的 Content-Type 或自定义请求头。
+     - POST/PUT 时引导选择 Body（单行 JSON、多行粘贴、读取本地文件或空 Body）。
+  3. **防呆确认卡片与 cURL 生成**: 发送前打印格式化请求概况卡片，并自动生成可复制的等效 cURL 指令。
+  4. **高亮响应与闭环操作**: 自动语法高亮格式化 JSON，展示耗时与状态码；请求后可一键再次发送、微调重发或新建请求。
