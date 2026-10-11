@@ -12,3 +12,4 @@ jq
 htop
 unzip
 tar
+w3m

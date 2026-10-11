@@ -102,4 +102,8 @@ Specialized tools built into the repository to enhance daily developer productiv
   4. **SQLite Lifecycle Persistence**: Automatic logging of latency, status, headers, and responses to `~/.http_cli.db`.
   5. **Domain History Search & 1-Click Replay**: Filter past requests by domain keyword and replay immediately.
   6. **Native File Uploads**: Generates standard `multipart/form-data` and binary streams from local Linux/WSL file paths.
-  7. **Global CLI Alias**: Integrated into `dotfiles/.zshrc` and `restore.sh` as `req` / `http-cli`.
+  7. **Terminal HTML Webpage Preview & Engine Switcher**:
+     - Automatically detects installed terminal HTML renderers (`w3m`, `lynx`, `elinks`, `browsh`, and pure-Python Built-in engine).
+     - Persistently stores preferred rendering engine in SQLite `settings` table and auto-renders future HTML responses accordingly.
+     - Provides an interactive post-response action menu to switch engines, immediately re-render, inspect raw HTML, or cleanly exit.
+  8. **Global CLI Alias**: Integrated into `dotfiles/.zshrc` and `restore.sh` as `req` / `http-cli`.

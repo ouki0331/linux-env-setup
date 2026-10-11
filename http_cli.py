@@ -62,12 +62,20 @@ def cprint(text, color="", bold=False, end="\n"):
 # ==========================================
 # Database Management (SQLite)
 # ==========================================
-DB_PATH = Path.home() / ".http_cli.db"
+DB_PATH = Path(os.environ.get("HTTP_CLI_DB", str(Path.home() / ".http_cli.db")))
 
 def get_db():
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
+    global DB_PATH
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        return conn
+    except sqlite3.OperationalError:
+        fallback_path = Path.cwd() / ".http_cli.db"
+        DB_PATH = fallback_path
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        return conn
 
 def init_db():
     conn = get_db()
@@ -106,7 +114,30 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
         conn.execute("INSERT OR IGNORE INTO projects (name) VALUES ('default')")
+    conn.close()
+
+def get_setting(key, default=""):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = cur.fetchone()
+    conn.close()
+    return row['value'] if row else default
+
+def set_setting(key, value):
+    conn = get_db()
+    with conn:
+        conn.execute("""
+            INSERT INTO settings (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """, (key, value))
     conn.close()
 
 def list_projects():
@@ -710,7 +741,7 @@ def build_curl(method, url, headers, body_data):
             parts.append(f"--data-binary '<binary payload>'")
     return " ".join(parts)
 
-def execute_and_record(project_name, method, url, headers, body_type, body_content_record, body_data):
+def execute_and_record(project_name, method, url, headers, body_type, body_content_record, body_data, interactive=True):
     cprint(f"\n⏳ [{project_name}] Sending HTTP request...", Color.YELLOW)
     req = urllib.request.Request(url, data=body_data, headers=headers, method=method)
     
@@ -723,6 +754,7 @@ def execute_and_record(project_name, method, url, headers, body_type, body_conte
     resp_headers = {}
     resp_snippet = ""
     elapsed_ms = 0.0
+    resp_bytes = b""
 
     try:
         with urllib.request.urlopen(req, context=ctx, timeout=30) as resp:
@@ -730,33 +762,36 @@ def execute_and_record(project_name, method, url, headers, body_type, body_conte
             status_code = resp.status
             resp_headers = resp.headers
             resp_bytes = resp.read()
-            resp_snippet = render_response(status_code, resp_headers, resp_bytes, elapsed_ms)
     except urllib.error.HTTPError as e:
         elapsed_ms = (time.time() - start_time) * 1000
         status_code = e.code
         resp_headers = e.headers
-        resp_snippet = render_response(status_code, resp_headers, e.read(), elapsed_ms)
+        resp_bytes = e.read()
     except Exception as e:
         elapsed_ms = (time.time() - start_time) * 1000
         resp_snippet = f"Error: {e}"
         cprint(f"\n❌ [{project_name}] Request failed ({elapsed_ms:.1f}ms): {e}", Color.RED, bold=True)
-    finally:
-        try:
-            save_request_history(
-                project_name=project_name,
-                method=method,
-                url=url,
-                headers=headers,
-                body_type=body_type,
-                body_content=body_content_record,
-                status_code=status_code,
-                elapsed_ms=elapsed_ms,
-                resp_headers=resp_headers,
-                resp_snippet=resp_snippet[:1000]
-            )
-            cprint(f"💾 [{project_name}] Request logged to SQLite database (~/.http_cli.db)", Color.DIM)
-        except Exception as db_err:
-            cprint(f"⚠️ Failed to log to SQLite: {db_err}", Color.RED)
+    
+    # Save to SQLite first so history is guaranteed even on early exit
+    try:
+        save_request_history(
+            project_name=project_name,
+            method=method,
+            url=url,
+            headers=headers,
+            body_type=body_type,
+            body_content=body_content_record,
+            status_code=status_code,
+            elapsed_ms=elapsed_ms,
+            resp_headers=resp_headers,
+            resp_snippet=(resp_bytes[:1000].decode("utf-8", errors="ignore") if resp_bytes else resp_snippet)
+        )
+        cprint(f"💾 [{project_name}] Request logged to SQLite database (~/.http_cli.db)", Color.DIM)
+    except Exception as db_err:
+        cprint(f"⚠️ Failed to log to SQLite: {db_err}", Color.RED)
+
+    if resp_bytes or status_code:
+        render_response(status_code, resp_headers, resp_bytes, elapsed_ms, project_name=project_name, interactive=interactive)
 
 class TerminalHTMLRenderer(HTMLParser):
     def __init__(self):
@@ -797,26 +832,168 @@ class TerminalHTMLRenderer(HTMLParser):
             if clean:
                 self.output.append(data)
 
-def render_html_preview(html_str):
-    for engine, cmd in [
-        ('w3m', ['w3m', '-dump', '-T', 'text/html']),
-        ('lynx', ['lynx', '-dump', '-stdin']),
-        ('elinks', ['elinks', '-dump'])
-    ]:
-        if shutil.which(engine):
-            try:
-                proc = subprocess.run(cmd, input=html_str.encode('utf-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
-                if proc.returncode == 0:
-                    return f"{Color.DIM}[Rendered via {engine}]{Color.RESET}\n" + proc.stdout.decode('utf-8', errors='ignore')
-            except Exception:
-                pass
+def get_available_html_engines():
+    """Detect available HTML rendering engines on the host system."""
+    engines = [
+        ("Built-in Terminal Engine (Pure Python, ANSI styled)", "builtin")
+    ]
+    if shutil.which("w3m"):
+        engines.append(("w3m (Fast text/table formatting) [Detected]", "w3m"))
+    if shutil.which("lynx"):
+        engines.append(("lynx (Classic terminal browser) [Detected]", "lynx"))
+    if shutil.which("elinks"):
+        engines.append(("elinks (Advanced terminal browser) [Detected]", "elinks"))
+    if shutil.which("browsh"):
+        engines.append(("browsh (Pixel-graphics terminal browser, requires Firefox) [Detected]", "browsh"))
+    engines.append(("Raw HTML Source Code (Unrendered)", "raw"))
+    return engines
 
+def resolve_html_engine(engine_setting):
+    avail = [eid for _, eid in get_available_html_engines()]
+    if engine_setting in avail:
+        return engine_setting
+    if "w3m" in avail:
+        return "w3m"
+    return "builtin"
+
+def get_engine_display_name(engine_id):
+    for label, eid in get_available_html_engines():
+        if eid == engine_id:
+            return label.split(" [")[0]
+    return engine_id
+
+def render_html_preview(html_str, engine=None):
+    if not engine or engine == "auto":
+        saved = get_setting("html_render_engine", "auto")
+        engine = resolve_html_engine(saved)
+    else:
+        engine = resolve_html_engine(engine)
+
+    if engine == "raw":
+        return f"{Color.DIM}[Engine: Raw HTML]{Color.RESET}\n" + html_str
+
+    if engine == "w3m":
+        try:
+            proc = subprocess.run(
+                ["w3m", "-dump", "-T", "text/html"],
+                input=html_str.encode("utf-8"),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=5
+            )
+            if proc.returncode == 0 and proc.stdout:
+                return f"{Color.DIM}[Rendered via w3m]{Color.RESET}\n" + proc.stdout.decode("utf-8", errors="ignore")
+        except Exception as e:
+            cprint(f"⚠️ w3m execution failed: {e}. Falling back to Built-in engine.", Color.YELLOW)
+
+    elif engine == "lynx":
+        try:
+            proc = subprocess.run(
+                ["lynx", "-dump", "-stdin"],
+                input=html_str.encode("utf-8"),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=5
+            )
+            if proc.returncode == 0 and proc.stdout:
+                return f"{Color.DIM}[Rendered via lynx]{Color.RESET}\n" + proc.stdout.decode("utf-8", errors="ignore")
+        except Exception as e:
+            cprint(f"⚠️ lynx execution failed: {e}. Falling back to Built-in engine.", Color.YELLOW)
+
+    elif engine == "elinks":
+        try:
+            proc = subprocess.run(
+                ["elinks", "-dump"],
+                input=html_str.encode("utf-8"),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=5
+            )
+            if proc.returncode == 0 and proc.stdout:
+                return f"{Color.DIM}[Rendered via elinks]{Color.RESET}\n" + proc.stdout.decode("utf-8", errors="ignore")
+        except Exception as e:
+            cprint(f"⚠️ elinks execution failed: {e}. Falling back to Built-in engine.", Color.YELLOW)
+
+    elif engine == "browsh":
+        import tempfile
+        try:
+            with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, encoding="utf-8") as tf:
+                tf.write(html_str)
+                tf_path = tf.name
+            try:
+                proc = subprocess.run(
+                    ["browsh", "--dump", f"file://{tf_path}"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=10
+                )
+                if proc.returncode == 0 and proc.stdout:
+                    return f"{Color.DIM}[Rendered via browsh (pixel/DOM)]{Color.RESET}\n" + proc.stdout.decode("utf-8", errors="ignore")
+                else:
+                    err_msg = proc.stderr.decode("utf-8", errors="ignore").strip()
+                    cprint(f"⚠️ browsh error: {err_msg or 'Non-zero exit'}. Falling back to Built-in engine.", Color.YELLOW)
+            finally:
+                if os.path.exists(tf_path):
+                    os.remove(tf_path)
+        except Exception as e:
+            cprint(f"⚠️ browsh execution failed: {e}. Falling back to Built-in engine.", Color.YELLOW)
+
+    # Built-in pure Python fallback
     parser = TerminalHTMLRenderer()
     parser.feed(html_str)
     rendered = "".join(parser.output).strip()
     return f"{Color.DIM}[Rendered via Built-in Terminal Engine]{Color.RESET}\n" + rendered
 
-def render_response(status_code, headers, body_bytes, elapsed_ms):
+def handle_html_post_options(project_name, body_str, initial_engine):
+    active_engine = initial_engine
+    while True:
+        engine_name = get_engine_display_name(active_engine)
+        cprint(f"\n[{project_name}] HTML Response Options:", Color.CYAN, bold=True)
+        options = [
+            ("Return to Main Menu", "menu"),
+            (f"Switch HTML Rendering Engine & Re-render (Current: {engine_name})", "switch"),
+            ("View Raw HTML Source Code", "raw"),
+            ("Exit http-cli", "exit")
+        ]
+        choice = prompt_choice(project_name, "Select Post-Response Action:", options, default_idx=0, allow_back=False)
+        if choice == "menu":
+            break
+        elif choice == "exit":
+            cprint(f"\n👋 [{project_name}] Goodbye!", Color.GREEN, bold=True)
+            sys.exit(0)
+        elif choice == "raw":
+            cprint("\n" + "="*50, Color.DIM)
+            cprint("📄 Raw HTML Source Code:", Color.CYAN, bold=True)
+            if len(body_str) > 3000:
+                cprint(body_str[:3000] + f"\n... [Truncated, total length: {len(body_str)} chars]", Color.WHITE)
+            else:
+                cprint(body_str, Color.WHITE)
+            cprint("="*50, Color.DIM)
+        elif choice == "switch":
+            avail = get_available_html_engines()
+            def_idx = 0
+            for i, (_, eid) in enumerate(avail):
+                if eid == active_engine:
+                    def_idx = i
+                    break
+            cprint(f"\n[{project_name}] Detected HTML Rendering Engines on system:", Color.CYAN, bold=True)
+            chosen_engine = prompt_choice(project_name, "Select New Default HTML Engine:", avail, default_idx=def_idx, allow_back=True)
+            if chosen_engine == "__BACK__":
+                continue
+            active_engine = chosen_engine
+            set_setting("html_render_engine", active_engine)
+            cprint(f"✅ Saved [{active_engine}] as preferred HTML engine for future responses.", Color.GREEN, bold=True)
+            
+            cprint("\n" + "="*50, Color.MAGENTA)
+            cprint(f"🌐 Re-rendered Preview ({get_engine_display_name(active_engine)}):", Color.MAGENTA, bold=True)
+            re_preview = render_html_preview(body_str, engine=active_engine)
+            if len(re_preview) > 3000:
+                cprint(re_preview[:3000] + f"\n... [Truncated, total length: {len(re_preview)} chars]", Color.WHITE)
+            else:
+                cprint(re_preview, Color.WHITE)
+            cprint("="*50, Color.MAGENTA)
+
+def render_response(status_code, headers, body_bytes, elapsed_ms, project_name="default", interactive=True):
     if 200 <= status_code < 300:
         s_color = Color.GREEN
     elif 300 <= status_code < 400:
@@ -852,11 +1029,15 @@ def render_response(status_code, headers, body_bytes, elapsed_ms):
 
         if is_html:
             cprint("🌐 Terminal Webpage Preview (Rendered HTML):", Color.MAGENTA, bold=True)
-            preview = render_html_preview(body_str)
+            active_engine = resolve_html_engine(get_setting("html_render_engine", "auto"))
+            preview = render_html_preview(body_str, engine=active_engine)
             if len(preview) > 3000:
                 cprint(preview[:3000] + f"\n... [Truncated, total length: {len(preview)} chars]", Color.WHITE)
             else:
                 cprint(preview, Color.WHITE)
+
+            if interactive and sys.stdin.isatty():
+                handle_html_post_options(project_name, body_str, active_engine)
         else:
             try:
                 parsed = json.loads(body_str)

@@ -3,3 +3,4 @@ deploy_backups/
 *remote_backup_*
 
 __pycache__/
+.http_cli.db

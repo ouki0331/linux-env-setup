@@ -35,7 +35,8 @@ def run_test(case_name, method, url, headers, body_type, body_content_str):
         headers=headers,
         body_type=body_type,
         body_content_record=body_content_str,
-        body_data=body_data
+        body_data=body_data,
+        interactive=False
     )
 
 print("🚀 Starting automated HTTP integration test suite...")
@@ -139,13 +140,26 @@ run_test(
     body_content_str=""
 )
 
-# 8. Check SQLite records
+# 8. HTML Webpage Preview Rendering
+run_test(
+    case_name="HTML Webpage Preview Rendering",
+    method="GET",
+    url="https://httpbin.org/html",
+    headers={
+        "User-Agent": "Interactive-CLI-HTTP/1.0",
+        "Accept": "text/html"
+    },
+    body_type="none",
+    body_content_str=""
+)
+
+# 9. Check SQLite records
 print("\n" + "="*60)
 print("📊 Verifying SQLite database records:")
 print("="*60)
 conn = get_db()
 cur = conn.cursor()
-cur.execute("SELECT id, method, domain, url, body_type, status_code, elapsed_ms FROM requests_history WHERE project_name='test-suite' ORDER BY id DESC LIMIT 7")
+cur.execute("SELECT id, method, domain, url, body_type, status_code, elapsed_ms FROM requests_history WHERE project_name='test-suite' ORDER BY id DESC LIMIT 8")
 rows = cur.fetchall()
 for r in reversed(rows):
     print(f"ID: {r['id']:<2} | {r['method']:<7} | Status: {r['status_code']:<3} | Elapsed: {r['elapsed_ms']:<6.1f}ms | Type: {r['body_type']:<6} | URL: {r['url']}")

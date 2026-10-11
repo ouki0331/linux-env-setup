@@ -65,5 +65,12 @@ mkdir -p ~/.local/bin
 [ -f "deploy.py" ] && cp deploy.py ~/.local/bin/deploy.py && chmod +x ~/.local/bin/deploy.py && echo "Installed deploy tool: deploy.py"
 [ -f "rollback.py" ] && cp rollback.py ~/.local/bin/rollback.py && chmod +x ~/.local/bin/rollback.py && echo "Installed rollback tool: rollback.py"
 
+# 5. Terminal HTML preview engine verification
+if command -v w3m &> /dev/null; then
+    echo "Terminal HTML renderer: w3m detected (ready for http_cli/req)."
+else
+    echo "Notice: w3m is recommended for terminal webpage previewing. Please install w3m if needed."
+fi
+
 echo "========================================"
 echo "Environment restore completed! Please restart terminal to apply new configurations."
