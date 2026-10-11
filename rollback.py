@@ -19,7 +19,7 @@ def load_config(repo_path, config_file="deploy_config.json"):
             break
             
     if not config_path:
-        raise FileNotFoundError(f"未找到配置文件 {config_file}")
+        raise FileNotFoundError(f"Configuration file {config_file} not found.")
         
     with open(config_path, "r") as f:
         configs = json.load(f)
@@ -29,7 +29,7 @@ def load_config(repo_path, config_file="deploy_config.json"):
         return configs[str(repo_path)]
     elif repo_name in configs:
         return configs[repo_name]
-    raise KeyError(f"未找到配置")
+    raise KeyError(f"Configuration not found for {repo_path}")
 
 def rollback_ftp(conf, backup_dir, manifest):
     ftp = ftplib.FTP()
@@ -39,21 +39,21 @@ def rollback_ftp(conf, backup_dir, manifest):
         ftp.cwd(conf['remote_dir'])
         ftp.voidcmd("TYPE I")
         
-        print("\n开始执行 FTP 回滚...")
+        print("\nStarting FTP rollback...")
         for file, status in manifest.items():
             if status == "new":
-                print(f"🗑️  删除意外发布的新文件: {file}")
+                print(f"🗑️  Deleting newly added file: {file}")
                 try:
                     ftp.delete(file)
                 except Exception as e:
-                    print(f"   (删除失败，可能远端已不存在: {e})")
+                    print(f"   (Deletion skipped or failed: {e})")
             elif status == "existing":
-                print(f"🔄 恢复老文件: {file}")
+                print(f"🔄 Restoring previous version: {file}")
                 local_src = backup_dir / file
                 with open(local_src, "rb") as local_f:
                     ftp.storbinary(f"STOR {file}", local_f)
                     
-        print("\n🎉 回滚完成！")
+        print("\n🎉 Rollback complete!")
     finally:
         try:
             ftp.quit()
@@ -69,20 +69,20 @@ def rollback_sftp(conf, backup_dir, manifest):
         sftp = ssh.open_sftp()
         sftp.chdir(conf['remote_dir'])
         
-        print("\n开始执行 SFTP 回滚...")
+        print("\nStarting SFTP rollback...")
         for file, status in manifest.items():
             if status == "new":
-                print(f"🗑️  删除意外发布的新文件: {file}")
+                print(f"🗑️  Deleting newly added file: {file}")
                 try:
                     sftp.remove(file)
                 except Exception as e:
-                    print(f"   (删除失败，可能远端已不存在: {e})")
+                    print(f"   (Deletion skipped or failed: {e})")
             elif status == "existing":
-                print(f"🔄 恢复老文件: {file}")
+                print(f"🔄 Restoring previous version: {file}")
                 local_src = backup_dir / file
                 sftp.put(str(local_src), file)
                 
-        print("\n🎉 回滚完成！")
+        print("\n🎉 Rollback complete!")
     finally:
         try:
             sftp.close()
@@ -91,7 +91,7 @@ def rollback_sftp(conf, backup_dir, manifest):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("用法: python rollback.py <本地仓库绝对路径> <备份文件夹绝对路径>")
+        print("Usage: python rollback.py <absolute_repo_path> <backup_dir_path>")
         sys.exit(1)
         
     repo_path = Path(sys.argv[1]).resolve()
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     manifest_path = backup_dir / "manifest.json"
     
     if not manifest_path.exists():
-        print(f"🛑 在 {backup_dir} 找不到 manifest.json，无法确认回滚策略。")
+        print(f"🛑 Cannot find manifest.json in {backup_dir}. Rollback strategy aborted.")
         sys.exit(1)
         
     with open(manifest_path, "r") as f:
@@ -107,7 +107,7 @@ if __name__ == "__main__":
         
     conf = load_config(str(repo_path))
     
-    ans = input(f"👉 确认将 {repo_path.name} 恢复到 {backup_dir.name} 的状态吗？[y/N]: ")
+    ans = input(f"👉 Confirm reverting {repo_path.name} to state in {backup_dir.name}? [y/N]: ")
     if ans.strip().lower() != 'y':
         sys.exit(1)
         

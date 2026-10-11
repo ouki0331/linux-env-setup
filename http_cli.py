@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-交互式 CLI HTTP 调试/请求与项目管理工具 (Interactive CLI HTTP Client & Project Hub)
-- 零第三方依赖：纯 Python 3 原生库 (urllib, sqlite3, ssl, json)
-- 状态持久化：内置 SQLite 数据库，全生命周期记录请求参数、响应指标、时间与频次
-- 项目与集合区分：按项目/文件夹归类管理请求
-- 环境变量与占位符：项目级共享变量 (如 {{baseUrl}}, {{apiKey}})，支持在 URL、Header、Body 中自动替换
-- 域名历史检索：按域名高效检索历史请求并支持一键回放
-- 多维参数与文件上传：支持 JSON、表单、XML，支持通过 Linux/WSL 文件路径上传文件
+Interactive CLI HTTP Client & Project Management Hub (http-cli / req)
+- 100% Zero external dependencies: pure Python 3 standard library
+- SQLite persistence: requests history, performance metrics, and project variables
+- Project isolation: organize requests by project/collection
+- Project variables: {{baseUrl}}, {{apiKey}}, {{token}} with auto-interpolation
+- Single keypress response: instant 'y' / 'n' without pressing Enter
+- Steppable wizard: press 'b' at any step to return to the previous step
+- Dedicated Query Parameters management (independent from URL)
+- Full HTTP methods (GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD)
+- Multipart file upload & Raw binary streaming from local path
 """
 
 import sys
@@ -24,8 +27,16 @@ import urllib.parse
 from datetime import datetime
 from pathlib import Path
 
+# Terminal single-key helper
+try:
+    import termios
+    import tty
+    HAS_TERMIOS = True
+except ImportError:
+    HAS_TERMIOS = False
+
 # ==========================================
-# 终端颜色与样式
+# Terminal Colors & Styling
 # ==========================================
 class Color:
     RESET = "\033[0m"
@@ -44,7 +55,7 @@ def cprint(text, color="", bold=False, end="\n"):
     print(f"{b}{color}{text}{Color.RESET}", end=end)
 
 # ==========================================
-# 数据库管理 (SQLite)
+# Database Management (SQLite)
 # ==========================================
 DB_PATH = Path.home() / ".http_cli.db"
 
@@ -112,7 +123,6 @@ def create_project(name):
     finally:
         conn.close()
 
-# 环境变量管理
 def get_project_variables(project_name):
     conn = get_db()
     cur = conn.cursor()
@@ -138,7 +148,6 @@ def delete_project_variable(project_name, key):
     conn.close()
 
 def apply_variables(text, variables):
-    """替换 {{var_name}} 占位符"""
     if not text or not isinstance(text, str):
         return text
     for k, v in variables.items():
@@ -193,48 +202,77 @@ def query_history(domain_keyword="", project_name=None, limit=15):
     return rows
 
 # ==========================================
-# 交互式选择辅助函数
+# Single Keypress & Prompt Helpers
 # ==========================================
-def prompt_choice(title, options, default_idx=0):
+def get_single_char():
+    if not HAS_TERMIOS or not sys.stdin.isatty():
+        line = sys.stdin.readline()
+        return line[0] if line else ""
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        ch = sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    return ch
+
+def prompt_instant_key(prompt_text, allowed_keys, default_key):
+    hint = "/".join([f"[{k.upper()}]" if k == default_key else k for k in allowed_keys])
+    cprint(f"\n? {prompt_text} ({hint}) ", Color.CYAN, bold=True, end="")
+    sys.stdout.flush()
+
+    while True:
+        ch = get_single_char()
+        if ch in ['\r', '\n']:
+            print(f" {default_key.upper()}")
+            return default_key
+        ch_lower = ch.lower()
+        if ch_lower in [k.lower() for k in allowed_keys]:
+            print(f" {ch_lower}")
+            return ch_lower
+
+def prompt_choice(title, options, default_idx=0, allow_back=True):
     cprint(f"\n? {title}", Color.CYAN, bold=True)
     for i, (label, _) in enumerate(options, 1):
         if i - 1 == default_idx:
-            cprint(f"  [{i}] {label} (默认)", Color.GREEN, bold=True)
+            cprint(f"  [{i}] {label} (default)", Color.GREEN, bold=True)
         else:
             cprint(f"  [{i}] {label}", Color.WHITE)
             
+    if allow_back:
+        cprint(f"  [b] < Back to previous step", Color.YELLOW)
+            
     while True:
-        choice = input(f"请输入选项 [1-{len(options)}, 回车默认 {default_idx+1}]: ").strip()
+        prompt_str = f"Enter choice [1-{len(options)}" + (", b=Back" if allow_back else "") + f", default {default_idx+1}]: "
+        choice = input(prompt_str).strip().lower()
         if not choice:
             return options[default_idx][1]
+        if allow_back and choice in ["b", "back"]:
+            return "__BACK__"
         if choice.isdigit():
             idx = int(choice) - 1
             if 0 <= idx < len(options):
                 return options[idx][1]
-        cprint("无效选项，请重新输入。", Color.RED)
+        cprint("Invalid option. Please try again.", Color.RED)
 
-def prompt_input(title, default=""):
-    default_hint = f" [默认: {default}]" if default else ""
-    cprint(f"\n? {title}{default_hint}", Color.CYAN, bold=True)
+def prompt_input(title, default="", allow_back=True):
+    default_hint = f" [default: {default}]" if default else ""
+    back_hint = " (type 'b' to go back)" if allow_back else ""
+    cprint(f"\n? {title}{default_hint}{back_hint}", Color.CYAN, bold=True)
     val = input("❯ ").strip()
+    if allow_back and val.lower() == "b":
+        return "__BACK__"
     return val if val else default
 
-def prompt_yes_no(title, default=True):
-    hint = "[Y/n]" if default else "[y/N]"
-    cprint(f"\n? {title} {hint}", Color.CYAN, bold=True)
-    val = input("❯ ").strip().lower()
-    if not val:
-        return default
-    return val in ["y", "yes", "true", "1"]
-
 # ==========================================
-# 构建 Multipart 文件上传 Body
+# Multipart File Upload Builder
 # ==========================================
 def build_multipart_body(file_path_str, field_name="file", extra_fields=None):
     boundary = f"----HttpCliBoundary{uuid.uuid4().hex}"
     p = Path(file_path_str).expanduser().resolve()
     if not p.is_file():
-        raise FileNotFoundError(f"文件不存在: {file_path_str}")
+        raise FileNotFoundError(f"File not found: {file_path_str}")
 
     filename = p.name
     mime_type, _ = mimetypes.guess_type(str(p))
@@ -263,204 +301,366 @@ def build_multipart_body(file_path_str, field_name="file", extra_fields=None):
     return bytes(body_bytes), content_type_header, filename
 
 # ==========================================
-# 核心向导流程
+# Steppable Request Wizard with Back Navigation
 # ==========================================
 def run_wizard(current_project, last_config=None):
     cprint("\n" + "="*50, Color.BLUE, bold=True)
-    cprint(f"🌐 交互式 HTTP 请求向导 [当前项目: {current_project}]", Color.BLUE, bold=True)
+    cprint(f"🌐 HTTP Request Wizard [Project: {current_project}]", Color.BLUE, bold=True)
     cprint("="*50, Color.BLUE, bold=True)
 
-    # 加载当前项目的环境变量
     variables = get_project_variables(current_project)
     if variables:
-        cprint("💡 当前项目可用环境变量 (输入 {{var}} 自动替换):", Color.YELLOW)
+        cprint("💡 Available Project Variables (use {{var}} to reference):", Color.YELLOW)
         for vk, vv in variables.items():
             masked_v = vv if len(vv) <= 30 else vv[:15] + "..." + vv[-6:]
             cprint(f"   • {{{{{vk}}}}} ➔ {masked_v}", Color.DIM)
 
-    # 1. 选择请求方式
-    method_options = [
-        ("GET", "GET"),
-        ("POST", "POST"),
-        ("PUT", "PUT"),
-        ("DELETE", "DELETE"),
-        ("PATCH", "PATCH"),
-        ("OPTIONS", "OPTIONS"),
-        ("HEAD", "HEAD")
-    ]
-    def_m_idx = 0
-    if last_config and last_config.get("method"):
-        for i, (_, m) in enumerate(method_options):
-            if m == last_config["method"]:
-                def_m_idx = i
-                break
-    method = prompt_choice("请选择请求方法 (HTTP Method):", method_options, default_idx=def_m_idx)
-
-    # 2. 输入 URL (智能预填 baseUrl)
-    base_url_var = "{{baseUrl}}" if "baseUrl" in variables else None
-    if base_url_var:
-        default_url = (last_config.get("url") if last_config else None) or f"{base_url_var}/api/test"
-    else:
-        default_url = (last_config.get("url") if last_config else None) or ("https://httpbin.org/get" if method == "GET" else "https://httpbin.org/post")
-
-    raw_url = prompt_input("请输入请求 URL (支持 {{var}} 占位符):", default=default_url)
-    
-    # 3. 配置请求头 (Headers) 与 身份认证 (Authentication)
-    headers = {
-        "User-Agent": "Interactive-CLI-HTTP/1.0",
-        "Accept": "*/*"
+    # Wizard State
+    state = {
+        "method": "GET",
+        "url_base": "",
+        "query_params": {},
+        "auth_type": "none",
+        "auth_header": "",
+        "headers": {
+            "User-Agent": "Interactive-CLI-HTTP/1.0",
+            "Accept": "*/*"
+        },
+        "body_type": "none",
+        "raw_body_content": "",
+        "body_data": None
     }
 
-    # 身份认证配置 (支持 Basic Auth, Bearer Token)
-    auth_options = [
-        ("无认证 (默认)", "none"),
-        ("Bearer Token (JWT / API Token)", "bearer"),
-        ("Basic Auth (用户名 + 密码，自动 Base64 编码)", "basic")
-    ]
-    auth_choice = prompt_choice("配置身份认证 (Authentication):", auth_options, default_idx=0)
-    if auth_choice == "bearer":
-        def_token = "{{token}}" if "token" in variables else ("{{apiKey}}" if "apiKey" in variables else "")
-        token_val = prompt_input("请输入 Bearer Token (支持 {{var}}):", default=def_token)
-        if token_val:
-            headers["Authorization"] = f"Bearer {token_val}"
-    elif auth_choice == "basic":
-        u = prompt_input("请输入 Basic Auth 用户名:")
-        p = prompt_input("请输入 Basic Auth 密码:")
-        token_str = base64.b64encode(f"{u}:{p}".encode("utf-8")).decode("utf-8")
-        headers["Authorization"] = f"Basic {token_str}"
-        cprint(f"  ✅ 已生成 Basic 认证请求头 (Base64)", Color.GREEN)
+    step = 1
+    TOTAL_STEPS = 6
 
-    body_data = None
-    body_type = "none"
-    raw_body_content = ""
+    while 1 <= step <= TOTAL_STEPS:
 
-    # 4. 请求体 (Body) 与 Content-Type
-    if method in ["POST", "PUT", "PATCH"]:
-        body_type_options = [
-            ("JSON 数据 (application/json)", "json"),
-            ("表单数据 (x-www-form-urlencoded)", "form"),
-            ("XML / 文本数据 (application/xml 或 text/plain)", "xml"),
-            ("文件上传 (multipart/form-data 或 二进制流)", "file"),
-            ("空 Body (不发送数据)", "none")
-        ]
-        body_type = prompt_choice("请选择请求体类型 (Body Type):", body_type_options, default_idx=0)
-        
-        if body_type == "json":
-            headers["Content-Type"] = "application/json"
-            default_body = (last_config.get("body_content") if last_config and last_config.get("body_type") == "json" else '{"msg": "hello"}')
-            raw_body_content = prompt_input("请输入 JSON 内容 (支持 {{var}}):", default=default_body)
-        elif body_type == "form":
-            headers["Content-Type"] = "application/x-www-form-urlencoded"
-            cprint("请输入表单键值对 (支持 {{var}}，如 username=admin&token={{token}}):", Color.YELLOW)
-            default_form = (last_config.get("body_content") if last_config and last_config.get("body_type") == "form" else 'username=admin&action=test')
-            raw_body_content = prompt_input("表单数据:", default=default_form)
-        elif body_type == "xml":
-            ct_choice = prompt_choice("请选择具体类型:", [("application/xml", "application/xml"), ("text/plain", "text/plain")], default_idx=0)
-            headers["Content-Type"] = ct_choice
-            cprint("请输入多行内容 (在最后一行单独输入 END 并回车结束):", Color.YELLOW)
-            lines = []
-            while True:
-                line = input()
-                if line.strip() == "END":
+        # ----------------------------------------------------
+        # STEP 1: HTTP Method
+        # ----------------------------------------------------
+        if step == 1:
+            method_options = [
+                ("GET", "GET"),
+                ("POST", "POST"),
+                ("PUT", "PUT"),
+                ("DELETE", "DELETE"),
+                ("PATCH", "PATCH"),
+                ("OPTIONS", "OPTIONS"),
+                ("HEAD", "HEAD")
+            ]
+            cur_idx = 0
+            for i, (_, m) in enumerate(method_options):
+                if m == state["method"]:
+                    cur_idx = i
                     break
-                lines.append(line)
-            raw_body_content = "\n".join(lines)
-        elif body_type == "file":
-            cprint("📁 文件上传配置 (支持绝对路径如 /home/ouki/workspace/test.png):", Color.CYAN)
-            file_path = prompt_input("请输入 Linux/WSL 本地文件路径:")
-            upload_mode = prompt_choice("选择上传方式:", [
-                ("表单多部分上传 (multipart/form-data)", "multipart"),
-                ("原始二进制流 (binary / octet-stream)", "binary")
-            ], default_idx=0)
 
-            if upload_mode == "multipart":
-                field_name = prompt_input("请输入文件表单字段名称:", default="file")
-                try:
-                    body_data, ct_header, fname = build_multipart_body(file_path, field_name=field_name)
-                    headers["Content-Type"] = ct_header
-                    raw_body_content = f"[file: {file_path}] (field: {field_name}, size: {len(body_data)}B)"
-                    cprint(f"  ✅ 文件已打包: {fname} ({len(body_data)} 字节)", Color.GREEN)
-                except Exception as e:
-                    cprint(f"  ❌ 文件处理失败: {e}，将使用空 Body", Color.RED)
-                    body_data = None
-            else:
-                p = Path(file_path).expanduser().resolve()
-                if p.is_file():
-                    with open(p, "rb") as f:
-                        body_data = f.read()
-                    headers["Content-Type"] = "application/octet-stream"
-                    raw_body_content = f"[binary_file: {file_path}] ({len(body_data)}B)"
-                    cprint(f"  ✅ 二进制文件已加载: {p.name} ({len(body_data)} 字节)", Color.GREEN)
+            res = prompt_choice("Step 1/6: Select HTTP Method:", method_options, default_idx=cur_idx, allow_back=False)
+            state["method"] = res
+            step += 1
+            continue
+
+        # ----------------------------------------------------
+        # STEP 2: Target URL
+        # ----------------------------------------------------
+        elif step == 2:
+            base_url_var = "{{baseUrl}}" if "baseUrl" in variables else None
+            if not state["url_base"]:
+                if base_url_var:
+                    state["url_base"] = f"{base_url_var}/api/test"
                 else:
-                    cprint(f"  ❌ 文件不存在: {p}", Color.RED)
-                    body_data = None
-        else:
-            raw_body_content = ""
-    else:
-        headers["Accept"] = "application/json, text/plain, */*"
+                    state["url_base"] = "https://httpbin.org/get" if state["method"] == "GET" else "https://httpbin.org/post"
 
-    # 补充自定义 Header
-    cprint(f"\n当前预设请求头 (支持 {{var}} 占位符):", Color.DIM)
-    for k, v in headers.items():
-        cprint(f"  • {k}: {v}", Color.DIM)
+            res = prompt_input("Step 2/6: Enter Target URL (without query parameters, or paste full URL):", default=state["url_base"])
+            if res == "__BACK__":
+                step -= 1
+                continue
 
-    if prompt_yes_no("是否需要添加额外的请求头？", default=False):
-        cprint("请输入请求头 (格式: Name: Value，直接按回车结束):", Color.YELLOW)
-        while True:
-            line = input("Header ❯ ").strip()
-            if not line:
-                break
-            if ":" in line:
-                hk, hv = line.split(":", 1)
-                headers[hk.strip()] = hv.strip()
-                cprint(f"  ✅ 已添加: {hk.strip()}: {hv.strip()}", Color.GREEN)
+            # Parse query parameters if user typed ?foo=bar in URL
+            parsed = urllib.parse.urlparse(res)
+            if parsed.query:
+                q_dict = dict(urllib.parse.parse_qsl(parsed.query))
+                state["query_params"].update(q_dict)
+                # Keep base URL without query
+                clean_url = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, "", parsed.fragment))
+                state["url_base"] = clean_url
             else:
-                cprint("  ⚠️ 格式错误，请使用 'Key: Value' 格式", Color.RED)
+                state["url_base"] = res
 
-    # 5. 变量求值与解析 (Interpolation)
-    actual_url = apply_variables(raw_url, variables)
-    if not actual_url.startswith("http://") and not actual_url.startswith("https://"):
-        if actual_url.startswith("localhost") or actual_url.startswith("127.0.0.1"):
-            actual_url = "http://" + actual_url
-        else:
-            actual_url = "https://" + actual_url
+            step += 1
+            continue
 
-    actual_headers = {apply_variables(k, variables): apply_variables(v, variables) for k, v in headers.items()}
-    
-    if body_type in ["json", "form", "xml"] and raw_body_content:
-        actual_body_str = apply_variables(raw_body_content, variables)
-        body_data = actual_body_str.encode("utf-8")
-        recorded_body_content = actual_body_str
-    else:
-        recorded_body_content = raw_body_content
+        # ----------------------------------------------------
+        # STEP 3: Dedicated Query Parameters Editor
+        # ----------------------------------------------------
+        elif step == 3:
+            cprint("\n" + "-"*40, Color.CYAN)
+            cprint("Step 3/6: Query Parameters Configuration", Color.CYAN, bold=True)
+            if state["query_params"]:
+                cprint("Current Parameters:", Color.GREEN)
+                for k, v in state["query_params"].items():
+                    cprint(f"  • {k} = {v}", Color.WHITE)
+            else:
+                cprint("No query parameters defined.", Color.DIM)
 
-    # 6. 生成 cURL 预览 & 概况卡片
-    curl_cmd = build_curl(method, actual_url, actual_headers, body_data)
-    
-    print("\n" + "-"*50)
-    cprint("📋 即将发送的请求概况:", Color.MAGENTA, bold=True)
-    cprint(f"Project: {current_project}", Color.WHITE)
-    cprint(f"Method : {method}", Color.WHITE, bold=True)
-    if raw_url != actual_url:
-        cprint(f"URL    : {raw_url}  ➔  {actual_url}", Color.WHITE, bold=True)
-    else:
-        cprint(f"URL    : {actual_url}", Color.WHITE, bold=True)
-    cprint("Headers:", Color.WHITE)
-    for k, v in actual_headers.items():
-        cprint(f"  {k}: {v}", Color.DIM)
-    if recorded_body_content:
-        preview = recorded_body_content[:250] + ("..." if len(recorded_body_content) > 250 else "")
-        cprint(f"Body   : ({body_type}) {preview}", Color.CYAN)
-    print("-"*50)
-    cprint(f"等效 cURL: {curl_cmd}", Color.DIM)
-    print("-"*50)
+            param_options = [
+                ("Proceed to next step (keep current parameters)", "next"),
+                ("Add / Update query parameter (key=value)", "add"),
+                ("Remove a query parameter", "remove"),
+                ("Clear all parameters", "clear")
+            ]
+            p_action = prompt_choice("Parameter Options:", param_options, default_idx=0)
+            if p_action == "__BACK__":
+                step -= 1
+                continue
+            elif p_action == "next":
+                step += 1
+                continue
+            elif p_action == "add":
+                param_key = prompt_input("Parameter Key:", allow_back=False)
+                if param_key:
+                    param_val = prompt_input(f"Value for '{param_key}':", allow_back=False)
+                    state["query_params"][param_key] = param_val
+                    cprint(f"  ✅ Added parameter: {param_key}={param_val}", Color.GREEN)
+                continue
+            elif p_action == "remove":
+                if not state["query_params"]:
+                    cprint("No parameters to remove.", Color.YELLOW)
+                    continue
+                rem_options = [(f"{k} = {v}", k) for k, v in state["query_params"].items()]
+                rem_key = prompt_choice("Select parameter to remove:", rem_options, default_idx=0)
+                if rem_key != "__BACK__":
+                    state["query_params"].pop(rem_key, None)
+                    cprint(f"  ✅ Removed parameter: {rem_key}", Color.GREEN)
+                continue
+            elif p_action == "clear":
+                state["query_params"].clear()
+                cprint("  ✅ Cleared all parameters.", Color.GREEN)
+                continue
 
-    if not prompt_yes_no("确认发送请求？", default=True):
-        cprint("已取消发送。", Color.YELLOW)
-        return
+        # ----------------------------------------------------
+        # STEP 4: Authentication & Headers
+        # ----------------------------------------------------
+        elif step == 4:
+            cprint("\n" + "-"*40, Color.CYAN)
+            cprint("Step 4/6: Authentication & Headers", Color.CYAN, bold=True)
 
-    # 7. 执行请求并记录
-    execute_and_record(current_project, method, actual_url, actual_headers, body_type, recorded_body_content, body_data)
+            auth_options = [
+                ("No Authentication (default)", "none"),
+                ("Bearer Token (JWT / API Token)", "bearer"),
+                ("Basic Auth (Username + Password with Auto-Base64)", "basic")
+            ]
+            auth_res = prompt_choice("Configure Authentication:", auth_options, default_idx=0)
+            if auth_res == "__BACK__":
+                step -= 1
+                continue
+
+            state["auth_type"] = auth_res
+            if auth_res == "bearer":
+                token_def = "{{token}}" if "token" in variables else ("{{apiKey}}" if "apiKey" in variables else "")
+                token_val = prompt_input("Enter Bearer Token (supports {{var}}):", default=token_def, allow_back=False)
+                if token_val:
+                    state["headers"]["Authorization"] = f"Bearer {token_val}"
+            elif auth_res == "basic":
+                u = prompt_input("Basic Auth Username:", allow_back=False)
+                p = prompt_input("Basic Auth Password:", allow_back=False)
+                token_str = base64.b64encode(f"{u}:{p}".encode("utf-8")).decode("utf-8")
+                state["headers"]["Authorization"] = f"Basic {token_str}"
+                cprint("  ✅ Basic Auth header generated.", Color.GREEN)
+            else:
+                state["headers"].pop("Authorization", None)
+
+            # Additional Custom Headers
+            cprint("\nCurrent Request Headers:", Color.DIM)
+            for k, v in state["headers"].items():
+                cprint(f"  • {k}: {v}", Color.DIM)
+
+            add_h_key = prompt_instant_key("Add custom headers? (e.g. X-Trace-Id)", ["y", "n", "b"], default_key="n")
+            if add_h_key == "b":
+                step -= 1
+                continue
+            elif add_h_key == "y":
+                cprint("Enter headers in 'Key: Value' format (blank line to finish):", Color.YELLOW)
+                while True:
+                    line = input("Header ❯ ").strip()
+                    if not line:
+                        break
+                    if ":" in line:
+                        hk, hv = line.split(":", 1)
+                        state["headers"][hk.strip()] = hv.strip()
+                        cprint(f"  ✅ Added: {hk.strip()}: {hv.strip()}", Color.GREEN)
+                    else:
+                        cprint("  ⚠️ Invalid format. Please use 'Key: Value'", Color.RED)
+
+            step += 1
+            continue
+
+        # ----------------------------------------------------
+        # STEP 5: Request Body (if POST/PUT/PATCH/DELETE)
+        # ----------------------------------------------------
+        elif step == 5:
+            if state["method"] in ["GET", "HEAD", "OPTIONS"]:
+                state["body_type"] = "none"
+                state["raw_body_content"] = ""
+                state["body_data"] = None
+                step += 1
+                continue
+
+            cprint("\n" + "-"*40, Color.CYAN)
+            cprint(f"Step 5/6: Request Body Configuration ({state['method']})", Color.CYAN, bold=True)
+
+            body_type_options = [
+                ("JSON (application/json)", "json"),
+                ("Form URL-Encoded (application/x-www-form-urlencoded)", "form"),
+                ("XML / Plain Text", "xml"),
+                ("File Upload (Multipart / Binary)", "file"),
+                ("Empty Body (No payload)", "none")
+            ]
+            b_choice = prompt_choice("Select Body Type:", body_type_options, default_idx=0)
+            if b_choice == "__BACK__":
+                step -= 1
+                continue
+
+            state["body_type"] = b_choice
+            if b_choice == "json":
+                state["headers"]["Content-Type"] = "application/json"
+                def_json = state["raw_body_content"] or '{"msg": "hello"}'
+                json_in = prompt_input("Enter JSON Payload (supports {{var}}):", default=def_json)
+                if json_in == "__BACK__":
+                    continue
+                state["raw_body_content"] = json_in
+            elif b_choice == "form":
+                state["headers"]["Content-Type"] = "application/x-www-form-urlencoded"
+                def_form = state["raw_body_content"] or "username=admin&action=test"
+                form_in = prompt_input("Enter Form Data (key=value&...):", default=def_form)
+                if form_in == "__BACK__":
+                    continue
+                state["raw_body_content"] = form_in
+            elif b_choice == "xml":
+                ct_sub = prompt_choice("Choose Specific Content-Type:", [("application/xml", "application/xml"), ("text/plain", "text/plain")], default_idx=0)
+                if ct_sub == "__BACK__":
+                    continue
+                state["headers"]["Content-Type"] = ct_sub
+                cprint("Enter multi-line text (type 'END' on a single line to finish):", Color.YELLOW)
+                lines = []
+                while True:
+                    line = input()
+                    if line.strip() == "END":
+                        break
+                    lines.append(line)
+                state["raw_body_content"] = "\n".join(lines)
+            elif b_choice == "file":
+                file_path = prompt_input("Enter Local File Path (Linux/WSL path):")
+                if file_path == "__BACK__":
+                    continue
+                upload_mode = prompt_choice("Select Upload Mode:", [
+                    ("Multipart Form-Data (standard web uploads)", "multipart"),
+                    ("Raw Binary Octet-Stream", "binary")
+                ], default_idx=0)
+                if upload_mode == "__BACK__":
+                    continue
+
+                if upload_mode == "multipart":
+                    field_name = prompt_input("Enter Form Field Name:", default="file", allow_back=False)
+                    try:
+                        b_bytes, ct_header, fname = build_multipart_body(file_path, field_name=field_name)
+                        state["headers"]["Content-Type"] = ct_header
+                        state["body_data"] = b_bytes
+                        state["raw_body_content"] = f"[file: {file_path}] (field: {field_name}, {len(b_bytes)}B)"
+                        cprint(f"  ✅ Packaged file: {fname} ({len(b_bytes)} bytes)", Color.GREEN)
+                    except Exception as e:
+                        cprint(f"  ❌ File packaging failed: {e}", Color.RED)
+                        state["body_data"] = None
+                else:
+                    p = Path(file_path).expanduser().resolve()
+                    if p.is_file():
+                        with open(p, "rb") as f:
+                            state["body_data"] = f.read()
+                        state["headers"]["Content-Type"] = "application/octet-stream"
+                        state["raw_body_content"] = f"[binary_file: {file_path}] ({len(state['body_data'])}B)"
+                        cprint(f"  ✅ Loaded binary file ({len(state['body_data'])} bytes)", Color.GREEN)
+                    else:
+                        cprint(f"  ❌ File not found: {p}", Color.RED)
+                        state["body_data"] = None
+            else:
+                state["raw_body_content"] = ""
+                state["body_data"] = None
+
+            step += 1
+            continue
+
+        # ----------------------------------------------------
+        # STEP 6: Pre-send Summary & Instant Single-Key Confirmation
+        # ----------------------------------------------------
+        elif step == 6:
+            # Construct final URL with query parameters & variables
+            raw_url_full = state["url_base"]
+            if state["query_params"]:
+                qs = urllib.parse.urlencode(state["query_params"])
+                sep = "&" if "?" in raw_url_full else "?"
+                raw_url_full = f"{raw_url_full}{sep}{qs}"
+
+            actual_url = apply_variables(raw_url_full, variables)
+            if not actual_url.startswith("http://") and not actual_url.startswith("https://"):
+                if actual_url.startswith("localhost") or actual_url.startswith("127.0.0.1"):
+                    actual_url = "http://" + actual_url
+                else:
+                    actual_url = "https://" + actual_url
+
+            actual_headers = {apply_variables(k, variables): apply_variables(v, variables) for k, v in state["headers"].items()}
+
+            if state["body_type"] in ["json", "form", "xml"] and state["raw_body_content"]:
+                actual_body_str = apply_variables(state["raw_body_content"], variables)
+                body_payload = actual_body_str.encode("utf-8")
+                recorded_content = actual_body_str
+            else:
+                body_payload = state["body_data"]
+                recorded_content = state["raw_body_content"]
+
+            curl_cmd = build_curl(state["method"], actual_url, actual_headers, body_payload)
+
+            print("\n" + "="*50)
+            cprint("📋 Step 6/6: Request Overview Card", Color.MAGENTA, bold=True)
+            cprint(f"Project : {current_project}", Color.WHITE)
+            cprint(f"Method  : {state['method']}", Color.WHITE, bold=True)
+            if raw_url_full != actual_url:
+                cprint(f"URL (tpl): {raw_url_full}", Color.DIM)
+                cprint(f"URL (raw): {actual_url}", Color.WHITE, bold=True)
+            else:
+                cprint(f"URL     : {actual_url}", Color.WHITE, bold=True)
+            
+            cprint("Headers :", Color.WHITE)
+            for k, v in actual_headers.items():
+                cprint(f"  {k}: {v}", Color.DIM)
+
+            if recorded_content:
+                preview = recorded_content[:200] + ("..." if len(recorded_content) > 200 else "")
+                cprint(f"Body ({state['body_type']}): {preview}", Color.CYAN)
+            print("="*50)
+            cprint(f"Equivalent cURL: {curl_cmd}", Color.DIM)
+            print("="*50)
+
+            # Instant Single Key Confirmation (y = Send, n = Cancel, b = Go back)
+            key_choice = prompt_instant_key("Send request now? (y=Send, n=Cancel, b=Back)", ["y", "n", "b"], default_key="y")
+            if key_choice == "b":
+                step -= 1
+                continue
+            elif key_choice == "n":
+                cprint("Request cancelled by user.", Color.YELLOW)
+                return
+
+            # Execute Request!
+            execute_and_record(
+                project_name=current_project,
+                method=state["method"],
+                url=actual_url,
+                headers=actual_headers,
+                body_type=state["body_type"],
+                body_content_record=recorded_content,
+                body_data=body_payload
+            )
+            step += 1
+            break
 
 def build_curl(method, url, headers, body_data):
     parts = ["curl", "-X", method, f"'{url}'"]
@@ -479,7 +679,7 @@ def build_curl(method, url, headers, body_data):
     return " ".join(parts)
 
 def execute_and_record(project_name, method, url, headers, body_type, body_content_record, body_data):
-    cprint("\n⏳ 正在发送请求...", Color.YELLOW)
+    cprint("\n⏳ Sending HTTP request...", Color.YELLOW)
     req = urllib.request.Request(url, data=body_data, headers=headers, method=method)
     
     ctx = ssl.create_default_context()
@@ -507,7 +707,7 @@ def execute_and_record(project_name, method, url, headers, body_type, body_conte
     except Exception as e:
         elapsed_ms = (time.time() - start_time) * 1000
         resp_snippet = f"Error: {e}"
-        cprint(f"\n❌ 请求发生异常 ({elapsed_ms:.1f}ms): {e}", Color.RED, bold=True)
+        cprint(f"\n❌ Request failed ({elapsed_ms:.1f}ms): {e}", Color.RED, bold=True)
     finally:
         try:
             save_request_history(
@@ -522,9 +722,9 @@ def execute_and_record(project_name, method, url, headers, body_type, body_conte
                 resp_headers=resp_headers,
                 resp_snippet=resp_snippet[:1000]
             )
-            cprint(f"💾 本次请求已记入 SQLite 数据库 (~/.http_cli.db)", Color.DIM)
+            cprint("💾 Request logged to SQLite database (~/.http_cli.db)", Color.DIM)
         except Exception as db_err:
-            cprint(f"⚠️ 记录数据库失败: {db_err}", Color.RED)
+            cprint(f"⚠️ Failed to log to SQLite: {db_err}", Color.RED)
 
 def render_response(status_code, headers, body_bytes, elapsed_ms):
     if 200 <= status_code < 300:
@@ -535,11 +735,11 @@ def render_response(status_code, headers, body_bytes, elapsed_ms):
         s_color = Color.RED
 
     print("\n" + "="*50)
-    cprint(f"HTTP 响应状态: {status_code}", s_color, bold=True, end="")
-    cprint(f" | 耗时: {elapsed_ms:.1f} ms | 大小: {len(body_bytes)} 字节", Color.DIM)
+    cprint(f"HTTP Status: {status_code}", s_color, bold=True, end="")
+    cprint(f" | Elapsed: {elapsed_ms:.1f} ms | Size: {len(body_bytes)} bytes", Color.DIM)
     print("="*50)
 
-    cprint("响应头 (Response Headers):", Color.CYAN, bold=True)
+    cprint("Response Headers:", Color.CYAN, bold=True)
     important_headers = [
         "content-type", "date", "server", "set-cookie", "content-length", "location",
         "allow", "access-control-allow-methods", "access-control-allow-headers",
@@ -549,7 +749,7 @@ def render_response(status_code, headers, body_bytes, elapsed_ms):
         if k.lower() in important_headers:
             cprint(f"  {k}: {v}", Color.DIM)
     
-    cprint("\n响应内容 (Response Body):", Color.CYAN, bold=True)
+    cprint("\nResponse Body:", Color.CYAN, bold=True)
     snippet = ""
     try:
         body_str = body_bytes.decode("utf-8")
@@ -560,105 +760,104 @@ def render_response(status_code, headers, body_bytes, elapsed_ms):
             cprint(formatted_json, Color.WHITE)
         except Exception:
             if len(body_str) > 2000:
-                cprint(body_str[:2000] + f"\n... [已截断，总长度 {len(body_str)} 字符]", Color.WHITE)
+                cprint(body_str[:2000] + f"\n... [Truncated, total length: {len(body_str)} chars]", Color.WHITE)
             else:
                 cprint(body_str, Color.WHITE)
     except UnicodeDecodeError:
         snippet = f"<binary {len(body_bytes)} bytes>"
-        cprint(f"<二进制内容或未知编码，大小: {len(body_bytes)} 字节>", Color.YELLOW)
+        cprint(f"<Binary content or unknown encoding, size: {len(body_bytes)} bytes>", Color.YELLOW)
     print("="*50)
     return snippet
 
 # ==========================================
-# 环境变量管理
+# Project Variables Management
 # ==========================================
 def manage_variables_flow(current_project):
     while True:
         cprint("\n" + "="*50, Color.CYAN, bold=True)
-        cprint(f"⚙️  环境变量管理 [项目: {current_project}]", Color.CYAN, bold=True)
+        cprint(f"⚙️  Project Variables [Project: {current_project}]", Color.CYAN, bold=True)
         cprint("="*50, Color.CYAN, bold=True)
 
         vars_dict = get_project_variables(current_project)
         if vars_dict:
-            cprint("当前已定义的公共变量:", Color.GREEN)
+            cprint("Current Project Variables:", Color.GREEN)
             for k, v in vars_dict.items():
                 cprint(f"  • {{{{{k}}}}} = {v}", Color.WHITE)
         else:
-            cprint("当前项目暂未定义任何环境变量。", Color.DIM)
+            cprint("No variables defined for this project yet.", Color.DIM)
 
-        cprint("\n操作选项:", Color.CYAN)
         options = [
-            ("添加 / 修改变量 (例如 baseUrl, apiKey)", "set"),
-            ("删除变量", "del"),
-            ("返回主菜单", "back")
+            ("Add / Update Variable (e.g. baseUrl, apiKey)", "set"),
+            ("Delete Variable", "del"),
+            ("Back to Main Menu", "back")
         ]
-        choice = prompt_choice("请选择操作:", options, default_idx=0)
+        choice = prompt_choice("Select Variable Action:", options, default_idx=0, allow_back=False)
 
         if choice == "back":
             break
         elif choice == "set":
-            cprint("请输入变量名 (不需要大括号，例如 baseUrl 或 token):", Color.YELLOW)
-            key = prompt_input("变量 Key:")
+            key = prompt_input("Variable Name (e.g. baseUrl, token):", allow_back=False)
             if not key:
                 continue
-            val = prompt_input(f"请输入 {{{{{key}}}}} 的值:")
+            val = prompt_input(f"Value for {{{{{key}}}}}:", allow_back=False)
             set_project_variable(current_project, key, val)
-            cprint(f"✅ 变量 {{{{{key}}}}} 已保存！", Color.GREEN, bold=True)
+            cprint(f"✅ Saved variable {{{{{key}}}}} = {val}", Color.GREEN, bold=True)
         elif choice == "del":
             if not vars_dict:
-                cprint("暂无可删除的变量。", Color.YELLOW)
+                cprint("No variables to delete.", Color.YELLOW)
                 continue
             del_options = [(f"{{{{{k}}}}} = {v}", k) for k, v in vars_dict.items()]
-            del_options.append(("取消", None))
-            target_key = prompt_choice("选择要删除的变量:", del_options, default_idx=0)
+            del_options.append(("Cancel", None))
+            target_key = prompt_choice("Select variable to delete:", del_options, default_idx=0, allow_back=False)
             if target_key:
                 delete_project_variable(current_project, target_key)
-                cprint(f"✅ 变量 {{{{{target_key}}}}} 已删除！", Color.GREEN, bold=True)
+                cprint(f"✅ Deleted variable {{{{{target_key}}}}}", Color.GREEN, bold=True)
 
 # ==========================================
-# 历史记录检索与回放
+# History Search & Instant Replay
 # ==========================================
 def view_history_flow(current_project):
     cprint("\n" + "="*50, Color.CYAN, bold=True)
-    cprint(f"🔍 历史请求检索与回放 [当前项目: {current_project}]", Color.CYAN, bold=True)
+    cprint(f"🔍 History Search & Replay [Project: {current_project}]", Color.CYAN, bold=True)
     cprint("="*50, Color.CYAN, bold=True)
 
-    search_scope = prompt_choice("选择检索范围:", [
-        (f"仅当前项目 ({current_project})", "current"),
-        ("跨所有项目检索", "all")
-    ], default_idx=0)
+    search_scope = prompt_choice("Search Scope:", [
+        (f"Current Project only ({current_project})", "current"),
+        ("All Projects", "all")
+    ], default_idx=0, allow_back=False)
 
     proj_filter = current_project if search_scope == "current" else None
-    domain_kw = prompt_input("请输入要过滤的域名关键词 (如 github.com，直接回车查看全部):", default="")
+    domain_kw = prompt_input("Filter by domain keyword (e.g. github.com, Enter for all):", default="", allow_back=False)
 
     records = query_history(domain_keyword=domain_kw, project_name=proj_filter, limit=15)
     if not records:
-        cprint("没有找到符合条件的历史记录。", Color.YELLOW)
+        cprint("No matching history records found.", Color.YELLOW)
         return
 
-    cprint(f"\n找到最近 {len(records)} 条历史记录:", Color.GREEN, bold=True)
+    cprint(f"\nFound {len(records)} recent records:", Color.GREEN, bold=True)
     options = []
     for r in records:
         status_tag = f"[{r['status_code']}]" if r['status_code'] else "[ERR]"
         time_tag = r['created_at'][:16]
         desc = f"{time_tag} | {r['method']:<6} | {status_tag} | {r['domain']} | {r['url']}"
         options.append((desc, r))
-    options.append(("返回上一级菜单", None))
+    options.append(("Back to Main Menu", None))
 
-    selected = prompt_choice("请选择要查看或回放的请求:", options, default_idx=0)
+    selected = prompt_choice("Select a request to inspect / replay:", options, default_idx=0, allow_back=False)
     if selected is None:
         return
 
     cprint("\n" + "-"*50, Color.MAGENTA, bold=True)
-    cprint(f"请求时间: {selected['created_at']} | 项目: {selected['project_name']}", Color.MAGENTA)
-    cprint(f"URL     : {selected['method']} {selected['url']}", Color.WHITE, bold=True)
-    cprint(f"状态    : {selected['status_code']} (耗时 {selected['elapsed_ms']:.1f}ms)", Color.CYAN)
-    cprint(f"参数类型: {selected['body_type']}", Color.DIM)
-    cprint(f"参数内容: {selected['body_content']}", Color.WHITE)
-    cprint(f"响应预览: {selected['response_snippet'][:200]}...", Color.DIM)
+    cprint(f"Timestamp : {selected['created_at']} | Project: {selected['project_name']}", Color.MAGENTA)
+    cprint(f"Endpoint  : {selected['method']} {selected['url']}", Color.WHITE, bold=True)
+    cprint(f"Status    : {selected['status_code']} ({selected['elapsed_ms']:.1f}ms)", Color.CYAN)
+    cprint(f"Body Type : {selected['body_type']}", Color.DIM)
+    cprint(f"Payload   : {selected['body_content']}", Color.WHITE)
+    cprint(f"Response  : {selected['response_snippet'][:200]}...", Color.DIM)
     print("-"*50)
 
-    if prompt_yes_no("是否立即原样回放该请求？", default=True):
+    replay_key = prompt_instant_key("Replay this request now? (y/n)", ["y", "n"], default_key="y")
+    if replay_key == "y":
         headers = json.loads(selected['headers_json']) if selected['headers_json'] else {}
         b_type = selected['body_type']
         b_content = selected['body_content']
@@ -677,36 +876,36 @@ def view_history_flow(current_project):
         )
 
 # ==========================================
-# 项目管理
+# Projects Management
 # ==========================================
 def manage_projects_flow(current_project):
     cprint("\n" + "="*50, Color.CYAN, bold=True)
-    cprint("📁 项目与集合管理", Color.CYAN, bold=True)
+    cprint("📁 Projects & Collections", Color.CYAN, bold=True)
     cprint("="*50, Color.CYAN, bold=True)
 
     projects = list_projects()
-    options = [(f"切换至: {p}" + (" (当前激活)" if p == current_project else ""), p) for p in projects]
-    options.append(("+ 新建项目", "__NEW__"))
-    options.append(("返回上一级菜单", "__BACK__"))
+    options = [(f"Switch to: {p}" + (" (ACTIVE)" if p == current_project else ""), p) for p in projects]
+    options.append(("+ Create New Project", "__NEW__"))
+    options.append(("Back to Main Menu", "__BACK__"))
 
-    choice = prompt_choice("请选择项目操作:", options, default_idx=0)
+    choice = prompt_choice("Select Project Action:", options, default_idx=0, allow_back=False)
     if choice == "__BACK__":
         return current_project
     elif choice == "__NEW__":
-        new_name = prompt_input("请输入新项目名称 (如 payment-api, auth-service):")
+        new_name = prompt_input("Enter new project name (e.g. payment-service, auth-api):", allow_back=False)
         if new_name:
             if create_project(new_name):
-                cprint(f"✅ 项目 [{new_name}] 创建成功并已设为当前项目！", Color.GREEN, bold=True)
+                cprint(f"✅ Created project [{new_name}] and set as active!", Color.GREEN, bold=True)
                 return new_name
             else:
-                cprint("⚠️ 该项目名称已存在！", Color.YELLOW)
+                cprint("⚠️ Project name already exists!", Color.YELLOW)
         return current_project
     else:
-        cprint(f"✅ 已切换当前项目为: [{choice}]", Color.GREEN, bold=True)
+        cprint(f"✅ Switched active project to: [{choice}]", Color.GREEN, bold=True)
         return choice
 
 # ==========================================
-# 主入口
+# Main CLI Entrypoint
 # ==========================================
 def main():
     init_db()
@@ -714,19 +913,19 @@ def main():
 
     while True:
         cprint("\n" + "="*50, Color.BLUE, bold=True)
-        cprint("🌐 交互式 HTTP 调试与项目管理中枢 (http-cli)", Color.BLUE, bold=True)
-        cprint(f"📁 当前激活项目: [{current_project}]", Color.MAGENTA, bold=True)
-        cprint(f"💾 数据存储: SQLite ({DB_PATH})", Color.DIM)
+        cprint("🌐 Interactive HTTP Client & Hub (http-cli)", Color.BLUE, bold=True)
+        cprint(f"📁 Active Project: [{current_project}]", Color.MAGENTA, bold=True)
+        cprint(f"💾 Storage: SQLite ({DB_PATH})", Color.DIM)
         cprint("="*50, Color.BLUE, bold=True)
 
         main_options = [
-            ("发起新 HTTP 请求 (向导模式)", "new_request"),
-            ("浏览 / 按域名检索历史请求 (一键回放)", "history"),
-            ("管理当前项目环境变量 (API Key, Base URL 等)", "variables"),
-            ("切换 / 新建项目与集合", "projects"),
-            ("退出", "exit")
+            ("Send New HTTP Request (Wizard)", "new_request"),
+            ("Search History by Domain (Replay)", "history"),
+            ("Project Variables (baseUrl, apiKey, token)", "variables"),
+            ("Projects & Collections", "projects"),
+            ("Exit", "exit")
         ]
-        action = prompt_choice("请选择要执行的操作:", main_options, default_idx=0)
+        action = prompt_choice("Select Action:", main_options, default_idx=0, allow_back=False)
 
         if action == "new_request":
             run_wizard(current_project)
@@ -737,12 +936,12 @@ def main():
         elif action == "projects":
             current_project = manage_projects_flow(current_project)
         elif action == "exit":
-            cprint("\n👋 感谢使用，再见！", Color.GREEN, bold=True)
+            cprint("\n👋 Goodbye!", Color.GREEN, bold=True)
             break
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        cprint("\n\n已退出调试工具。", Color.YELLOW)
+        cprint("\n\nExited http-cli.", Color.YELLOW)
         sys.exit(0)

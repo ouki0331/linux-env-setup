@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 # ==========================================
-# 工具函数
+# Utility Functions
 # ==========================================
 def load_config(repo_path, config_file="deploy_config.json"):
     possible_paths = [
@@ -23,7 +23,7 @@ def load_config(repo_path, config_file="deploy_config.json"):
             break
             
     if not config_path:
-        raise FileNotFoundError(f"未找到配置文件 {config_file}。请复制 deploy_config.example.json 并配置账密。")
+        raise FileNotFoundError(f"Configuration file {config_file} not found. Please copy deploy_config.example.json and configure credentials.")
         
     with open(config_path, "r") as f:
         configs = json.load(f)
@@ -34,23 +34,23 @@ def load_config(repo_path, config_file="deploy_config.json"):
     elif repo_name in configs:
         return configs[repo_name]
     
-    raise KeyError(f"在 {config_path} 中未找到仓库 {repo_path} 的配置")
+    raise KeyError(f"Repository {repo_path} configuration not found in {config_path}")
 
 def confirm_environment(protocol, host, user, remote_target_dir, real_pwd, files_count):
     print("\n" + "="*50)
-    print("⚠️  请核对远程服务器信息 ⚠️")
+    print("⚠️  Pre-flight Environment Verification ⚠️")
     print("="*50)
-    print(f"🌍 协议类型: {protocol.upper()}")
-    print(f"🖥️  远程主机: {host}")
-    print(f"👤 登录账号: {user}")
-    print(f"📁 目标配置路径: {remote_target_dir}")
-    print(f"🔍 远端真实当前路径 (PWD): {real_pwd}")
-    print(f"📦 待处理文件总数: {files_count} 个")
+    print(f"Protocol : {protocol.upper()}")
+    print(f"Host     : {host}")
+    print(f"User     : {user}")
+    print(f"Target   : {remote_target_dir}")
+    print(f"Real PWD : {real_pwd}")
+    print(f"Files    : {files_count} file(s)")
     print("-" * 50)
-    print("当前操作：即将拉取远端旧文件进行备份，备份无误后才会上传新文件。")
-    ans = input("👉 请确认这是你要操作的环境并且路径正确吗？[y/N]: ")
+    print("Operation: Pull remote backups before safely deploying new files.")
+    ans = input("👉 Confirm target environment and paths are correct? [y/N]: ")
     if ans.strip().lower() != 'y':
-        print("操作已取消。")
+        print("Operation cancelled by user.")
         sys.exit(1)
 
 def ensure_remote_dir_ftp(ftp, root, rel_dir):
@@ -89,14 +89,14 @@ def ftp_size_or_none(ftp, f):
             if "550" in str(nlst_e):
                 names = []
             else:
-                raise RuntimeError(f"目录访问异常 (可能是权限不足): {parent}") from nlst_e
+                raise RuntimeError(f"Directory access error (possible permission issue): {parent}") from nlst_e
             
         if name in names:
-            raise RuntimeError(f"文件存在但无法取得大小，可能无权限或服务器问题: {f}") from e
+            raise RuntimeError(f"File exists but unable to obtain size: {f}") from e
         return None
 
 # ==========================================
-# 核心逻辑
+# Core Deployment Logic
 # ==========================================
 def process_ftp(conf, repo_path, file_list):
     backup_base = Path.home() / ".deploy_backups" / Path(repo_path).name / datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -116,11 +116,11 @@ def process_ftp(conf, repo_path, file_list):
         confirm_environment("FTP", conf['host'], conf['user'], conf['remote_dir'], real_pwd, len(file_list))
         backup_base.mkdir(parents=True, exist_ok=True)
 
-        print("\n[1/2] 开始备份老文件 (FTP)...")
+        print("\n[1/2] Backing up remote files (FTP)...")
         for f in file_list:
             size = ftp_size_or_none(ftp, f)
             if size is None:
-                print(f"➕ 检测为新文件 (远端不存在): {f}")
+                print(f"➕ New file detected (not present on remote): {f}")
                 manifest[f] = "new"
                 continue
                 
@@ -130,14 +130,14 @@ def process_ftp(conf, repo_path, file_list):
                 ftp.retrbinary(f"RETR {f}", local_f.write)
             
             if size > 0 and dst.stat().st_size != size:
-                raise RuntimeError(f"🛑 备份校验失败 (大小不一致): {f}")
-            print(f"✅ 成功备份: {f}")
+                raise RuntimeError(f"🛑 Backup verification failed (size mismatch): {f}")
+            print(f"✅ Successfully backed up: {f}")
             manifest[f] = "existing"
             
         with open(backup_base / "manifest.json", "w") as mf:
             json.dump(manifest, mf, indent=2)
 
-        print("\n[2/2] 备份完成，开始部署新文件 (FTP)...")
+        print("\n[2/2] Backup complete. Deploying new files (FTP)...")
         for f in file_list:
             current_upload = f
             local_src = Path(repo_path) / f
@@ -154,22 +154,22 @@ def process_ftp(conf, repo_path, file_list):
                 
             tmp_size = ftp_size_or_none(ftp, tmp_f)
             if tmp_size is not None and tmp_size != local_src.stat().st_size:
-                raise RuntimeError(f"🛑 上传校验失败: {f}")
+                raise RuntimeError(f"🛑 Upload verification failed: {f}")
                 
             try:
                 ftp.delete(f)
             except: pass
             
             ftp.rename(tmp_f, f)
-            print(f"🚀 成功上传: {f}")
+            print(f"🚀 Successfully uploaded: {f}")
             uploaded.append(f)
             current_upload = None
             
     except BaseException as e:
-        print(f"\n❌ 部署中断: {e}")
-        print("以下文件已成功上传: ", uploaded)
+        print(f"\n❌ Deployment interrupted: {e}")
+        print("Successfully uploaded files: ", uploaded)
         if current_upload:
-            print(f"⚠️ 状态未知的中断文件: {current_upload}")
+            print(f"⚠️ Interrupted file with unknown state: {current_upload}")
         if backup_base.exists():
             with open(backup_base / "deploy_log.json", "w") as df:
                 json.dump({"uploaded": uploaded, "interrupted": current_upload}, df, indent=2)
@@ -180,7 +180,7 @@ def process_ftp(conf, repo_path, file_list):
         except:
             ftp.close()
             
-    print(f"\n🎉 发布成功！备份已归档至: {backup_base}")
+    print(f"\n🎉 Deployment successful! Backups archived to: {backup_base}")
 
 def process_sftp(conf, repo_path, file_list):
     backup_base = Path.home() / ".deploy_backups" / Path(repo_path).name / datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -197,7 +197,7 @@ def process_sftp(conf, repo_path, file_list):
             ssh.connect(hostname=conf['host'], port=conf.get('port', 22), username=conf['user'], password=conf.get('pass'), timeout=15)
         except paramiko.ssh_exception.SSHException as e:
             if "not found in known_hosts" in str(e):
-                print(f"⚠️  未知主机指纹: {conf['host']}。请先通过 ssh 登录一次以信任该主机。")
+                print(f"⚠️  Unknown host key for {conf['host']}. Please SSH to this host once to trust it.")
             raise
             
         sftp = ssh.open_sftp()
@@ -207,31 +207,31 @@ def process_sftp(conf, repo_path, file_list):
         confirm_environment("SFTP", conf['host'], conf['user'], conf['remote_dir'], real_pwd, len(file_list))
         backup_base.mkdir(parents=True, exist_ok=True)
 
-        print("\n[1/2] 开始备份老文件 (SFTP)...")
+        print("\n[1/2] Backing up remote files (SFTP)...")
         for f in file_list:
             try:
                 remote_stat = sftp.stat(f)
                 remote_size = remote_stat.st_size
             except FileNotFoundError:
-                print(f"➕ 检测为新文件 (远端不存在): {f}")
+                print(f"➕ New file detected (not present on remote): {f}")
                 manifest[f] = "new"
                 continue
             except IOError as e:
-                raise RuntimeError(f"🛑 读取远端文件状态异常 (无权限或连接断开): {f}") from e
+                raise RuntimeError(f"🛑 Error reading remote file status: {f}") from e
 
             dst = backup_base / f
             dst.parent.mkdir(parents=True, exist_ok=True)
             sftp.get(f, str(dst))
             
             if dst.stat().st_size != remote_size:
-                raise RuntimeError(f"🛑 备份校验失败 (下载大小与远端不一致): {f}")
-            print(f"✅ 成功备份: {f}")
+                raise RuntimeError(f"🛑 Backup verification failed (download size mismatch): {f}")
+            print(f"✅ Successfully backed up: {f}")
             manifest[f] = "existing"
             
         with open(backup_base / "manifest.json", "w") as mf:
             json.dump(manifest, mf, indent=2)
 
-        print("\n[2/2] 备份完成，开始部署新文件 (SFTP)...")
+        print("\n[2/2] Backup complete. Deploying new files (SFTP)...")
         for f in file_list:
             current_upload = f
             local_src = Path(repo_path) / f
@@ -246,22 +246,22 @@ def process_sftp(conf, repo_path, file_list):
             sftp.put(str(local_src), tmp_f)
             
             if sftp.stat(tmp_f).st_size != local_src.stat().st_size:
-                raise RuntimeError(f"🛑 上传校验失败: {f}")
+                raise RuntimeError(f"🛑 Upload verification failed: {f}")
                 
             try:
                 sftp.remove(f)
             except IOError: pass
             
             sftp.posix_rename(tmp_f, f)
-            print(f"🚀 成功上传: {f}")
+            print(f"🚀 Successfully uploaded: {f}")
             uploaded.append(f)
             current_upload = None
 
     except BaseException as e:
-        print(f"\n❌ 部署中断: {e}")
-        print("以下文件已成功上传: ", uploaded)
+        print(f"\n❌ Deployment interrupted: {e}")
+        print("Successfully uploaded files: ", uploaded)
         if current_upload:
-            print(f"⚠️ 状态未知的中断文件: {current_upload}")
+            print(f"⚠️ Interrupted file with unknown state: {current_upload}")
         if backup_base.exists():
             with open(backup_base / "deploy_log.json", "w") as df:
                 json.dump({"uploaded": uploaded, "interrupted": current_upload}, df, indent=2)
@@ -272,11 +272,11 @@ def process_sftp(conf, repo_path, file_list):
         except: pass
         ssh.close()
         
-    print(f"\n🎉 发布成功！备份已归档至: {backup_base}")
+    print(f"\n🎉 Deployment successful! Backups archived to: {backup_base}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("用法: python deploy.py <本地仓库绝对路径> <file_list.txt 绝对路径>")
+        print("Usage: python deploy.py <absolute_repo_path> <absolute_file_list.txt>")
         sys.exit(1)
         
     repo_path = Path(sys.argv[1]).resolve()
@@ -292,18 +292,18 @@ if __name__ == "__main__":
             
             p = PurePosixPath(line)
             if p.is_absolute() or ".." in p.parts:
-                raise ValueError(f"🛑 非法路径，禁止相对路径逃逸或绝对路径: {line}")
+                raise ValueError(f"🛑 Illegal path escape: {line}")
             
             local_target = repo_path / line
             if local_target.is_file():
                 actual_files.append(line)
             elif local_target.is_dir():
-                print(f"⚠️ 忽略目录 (只处理文件): {line}")
+                print(f"⚠️ Skipping directory: {line}")
             else:
-                print(f"⚠️ 忽略已删除的文件: {line}")
+                print(f"⚠️ Skipping deleted/missing file: {line}")
                 
     if not actual_files:
-        print("没有需要发布的有效文件。")
+        print("No valid files to deploy.")
         sys.exit(0)
         
     if conf['protocol'].lower() == 'ftp':
@@ -311,4 +311,4 @@ if __name__ == "__main__":
     elif conf['protocol'].lower() == 'sftp':
         process_sftp(conf, str(repo_path), actual_files)
     else:
-        print("不支持的协议！")
+        print("Unsupported protocol.")

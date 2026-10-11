@@ -1,117 +1,105 @@
-# 极客工作站：跨端环境与工作流自动化蓝图 (WSL & Mac)
+# Geek Workstation: Cross-Environment & Automation Blueprint (WSL & macOS)
 
-本文档记录了从零开始构建一个兼具**跨发行版兼容性**、**高度自动化**与**极致终端体验**的开发环境的所有需求细节与定制化工作流。
-
----
-
-## 1. 基础系统与权限层 (OS & System Core)
-**目标**：确保在任何新的 WSL 环境下，系统底座和权限划分完全符合个人习惯。
-- [ ] **操作系统预设**: AlmaLinux 9.7 (基于 RHEL，主要使用 `dnf`)。
-- [ ] **账号与权限自动化**: 
-  - 支持自定义用户名（默认预设为 `ouki`）。
-  - 自动将其加入 `sudo` / `wheel` 管理员组。
-  - 交互式密码设置：脚本执行时询问是否重置该账号密码或保留原状。
-- [ ] **WSL 行为劫持**: 自动修改 `/etc/wsl.conf`，将默认启动登录账户修改为目标用户（非 root）。
+This document specifies the requirements, workflows, and custom tooling for building an automated, cross-distribution Linux/WSL development environment with high-efficiency terminal productivity.
 
 ---
 
-## 2. 终端体验与视觉层 (Terminal UX)
-**目标**：打造一个高颜值、高信息密度的命令行交互环境。
-- [ ] **核心 Shell**: `zsh` (需自动将账户默认 Shell 切换至此)。
-- [ ] **现代终端工具替换方案**:
-  - `eza`: 替代传统 `ls`，配合 Nerd Fonts 实现带有文件类型图标的丰富目录展示。
-  - `bat`: 替代 `cat`，带有文件类型语法高亮。
-- [ ] **系统状态与进程监控**:
-  - `htop` / `btop`：现代化的高颜值系统资源面板。
-  - **硬盘管理**：集成如 `ncdu` / `dust` 等可视化目录容量占用分析工具。
-  - **进程管理**：支持各类现代化的进程与网络监控。
+## 1. Operating System & User Management (OS & System Core)
+**Goal**: Ensure clean privilege separation and personalized presets on any new WSL instance.
+- [ ] **Base OS**: AlmaLinux 9.7 (RHEL-based, using `dnf`).
+- [ ] **User & Privilege Automation**:
+  - Configurable username (defaults to `ouki`).
+  - Auto-grant administrative privileges (`sudo` / `wheel` group).
+  - Interactive password prompt (reset or retain current).
+- [ ] **WSL Boot Configuration**:
+  - Automatically configure `/etc/wsl.conf` to launch with the configured default user (non-root).
 
 ---
 
-## 3. 语言环境与开发工具链 (Dev Toolchains)
-**目标**：所有主流编程语言和包管理器的自动化就绪。
-- [ ] **核心开发语言 SDK**:
-  - Node.js
-  - PHP
-  - C# (.NET SDK)
-  - Python
-  - Go
-  - Rust
-  - Ruby
-  - Dart (用于 CSS 预处理等编译场景，如 Dart Sass)
-- [ ] **全局包管理器依赖同步**:
-  - **Node.js**: 自动恢复常用的 `npm`/`yarn`/`pnpm` 全局工具。
-  - **PHP**: 自动恢复 `Composer` 的全局依赖包。
-- [ ] **多范式版本控制**:
-  - `Git` 及相关的全局 `~/.gitconfig` 恢复。
-  - `jj` (Jujutsu): 兼容 Git 的新一代高效版本控制系统。
+## 2. Terminal User Experience (Terminal UX)
+**Goal**: Beautiful, high-density, and ergonomic command-line workflow.
+- [ ] **Primary Shell**: `zsh` (auto set as default shell).
+- [ ] **Modern CLI Replacements**:
+  - `eza`: Modern `ls` alternative with Nerd Fonts icon support.
+  - `bat`: Modern `cat` alternative with syntax highlighting.
+- [ ] **System Status & Process Monitoring**:
+  - `htop` / `btop`: Aesthetic terminal monitors.
+  - **Disk Analysis**: `ncdu` / `dust` visual disk usage analyzers.
+  - **Process Management**: Enhanced process viewers.
 
 ---
 
-## 4. 文本、文件搜索与编辑层 (Editors & Search)
-**目标**：即使没有 GUI IDE，在终端内也能获得顶级的代码浏览与修改体验。
-- [ ] **文本编辑器**: `Neovim` (NVIM)。
-- [ ] **终端内媒体阅览**:
-  - **Markdown 查看器**: 终端内直接渲染排版好的 Markdown 文档（如 `glow` 等）。
-  - **图片查看器**: 适配 WSL 的轻量级图像预览工具。
-- [ ] **极限搜索工作流**:
-  - `fzf`: 终端下的交互式模糊查找神器，用于快速定位文件、历史命令、Git 仓库等。
-  - `ripgrep` (`rg`): 极致性能的全文内容正则检索引擎。
-- [ ] **压缩/解压工具全家桶**: `unzip`, `tar`, `7z` 等常备工具。
+## 3. Programming Languages & Toolchains (Dev Toolchains)
+**Goal**: Rapid readiness of primary programming environments and global dependencies.
+- [ ] **Language SDKs**:
+  - Node.js, PHP, C# (.NET SDK), Python, Go, Rust, Ruby, Dart.
+- [ ] **Global Package Manager Synchronization**:
+  - **Node.js**: Global `npm` / `pnpm` / `yarn` packages.
+  - **PHP**: Global `Composer` packages.
+- [ ] **Modern Version Control**:
+  - `Git` and global `~/.gitconfig` restoration.
+  - `jj` (Jujutsu): Next-generation Git-compatible VCS.
 
 ---
 
-## 5. 容器化与持久数据资产 (Docker & Data)
-**目标**：将所有沉淀在容器内的私人资产完美迁移。
-- [ ] **容器引擎**: 原生 Docker CE 社区版。
-- [ ] **私有镜像与数据持久化**:
-  - **本地 Registry**: 恢复本地 Docker 仓库环境。
-  - **私人 DB 恢复**: 针对特定承载着私人资料的数据库 Docker 镜像，进行数据卷（Volume）或镜像级别的完整打包与迁移。
+## 4. Text Editing, Media Viewing & Search (Editors & Search)
+**Goal**: Top-tier editing and navigation directly within the terminal.
+- [ ] **Editor**: `Neovim` (NVIM).
+- [ ] **In-Terminal Viewers**:
+  - **Markdown Viewer**: Formatted Markdown rendering in terminal (`glow`).
+  - **Image Viewer**: Lightweight image preview compatible with WSL.
+- [ ] **Fast Search Workflows**:
+  - `fzf`: Interactive fuzzy finder for files, history, and repos.
+  - `ripgrep` (`rg`): High-performance regular expression search.
+- [ ] **Archiving Suite**: `unzip`, `tar`, `7z`.
 
 ---
 
-## 6. 安全资产与零散状态同步 (Secrets & Workspaces)
-**目标**：保证开发者的数字身份和临时手稿不会在切换系统时丢失。
-- [ ] **密钥与凭证注入**:
-  - 完整备份/恢复 `~/.ssh/` 下的公私钥体系。
-  - 恢复各类数据库、服务端的本地连接凭据（如 `psql` 的 `.pgpass`、云服务器鉴权配置文件）。
-- [ ] **独立 Workspace 归档**:
-  - 扫描 `~/workspace` 目录。
-  - 针对那些**没有纳入 Git 版本控制**的临时文件夹、草稿代码和零散文件进行独立打包备份。
+## 5. Containerization & Data Persistence (Docker & Data)
+**Goal**: Safe migration and restoration of local container assets.
+- [ ] **Container Engine**: Native Docker CE.
+- [ ] **Private Registry & Database Persistence**:
+  - **Local Registry**: Restoration of local Docker image registry.
+  - **Personal DB Restoration**: Full volume/image migration of personal data databases.
 
 ---
 
-## 7. 进阶定制自动化工作流 (Advanced Workflows)
-这部分属于高度定制化的私有工具，脱离了单纯的“环境配置”范畴，而是提升工作流幸福感的核心应用。
+## 6. Secrets, Credentials & Workspace Backup (Secrets & Workspaces)
+**Goal**: Prevent loss of digital credentials and untracked work-in-progress files.
+- [ ] **Credentials Injection**:
+  - Backup & restore `~/.ssh/` key pairs.
+  - Restore database connection profiles (`.pgpass`, cloud server configs).
+- [ ] **Non-Git Workspace Archiving**:
+  - Scan `~/workspace` directory.
+  - Package and backup unversioned directories, drafts, and loose project files.
 
-### 7.1. 跨端系统级告警推送中心 (WSL ➡️ Windows)
-- **痛点**: Windows 原生 Toast 弹窗极度干扰视线，且网页端普通 WebSocket 刷新即断连漏消息。
-- **架构**:
-  1. WSL 驻留文件监控守护进程（如 `inotify`）。
-  2. 本地 WebSocket 消息广播枢纽（支持未来任意后端接入如 CI/CD 结果推送）。
-  3. **Manifest V3 浏览器扩展 (Client)**：利用后台 `Service Worker` 持久化长连接（无视刷新），通过 `Content Script` 在用户当前激活的任何网页顶部，注入不遮挡输入框的专属 UI 横幅。
+---
 
-### 7.2. 老旧服务器无侵入式智能发布工具 (Pull-Backup Deployer)
-- **痛点**: 古董生产环境依靠纯 FTP/SFTP 更新，手动备份百余个文件易出错，且不能在服务器跑脚本。
-- **架构**:
-  1. **本地仓库甄选 (`fzf`)**: 全局脚本扫描所有仓库，支持模糊查找和分支切换。
-  2. **智能 Commit 对比**: 提取两次发布节点间的差异，支持过滤“仅自己提交的代码”。
-  3. **环境防呆确认 (Pre-flight)**: 连接远端后，强制打印协议、IP 和远端绝对路径，要求用户 `[y/N]` 二次确认。
-  4. **拉取式备份 (Pull-before-push)**: `deploy.py` 自动读取 `deploy_config.json` 映射的协议与账密，去服务器将旧代码原样拉回到本地 `remote_backup_xxx` 时间戳归档夹。
-  5. **自动化覆盖**: 确认备份无误后自动推送新文件。
+## 7. Advanced Custom Workflows & Tools (Advanced Workflows)
+Specialized tools built into the repository to enhance daily developer productivity.
 
-### 7.3. 交互式向导型 CLI HTTP 调试与项目管理中枢 (http-cli / req)
-- **痛点**: `curl` 或 `HTTPie` 需记忆繁复参数；GUI 客户端 (Postman) 太重且脱离终端；缺乏类似 Postman 的项目集合隔离与环境变量能力。
-- **方案实现 (`http_cli.py`)**:
-  1. **纯原生零依赖**: 纯 Python 3 内置库 (`urllib`, `sqlite3`, `ssl`, `json`) 实现，全平台无需 `pip install` 任何包。
-  2. **项目级环境变量与公共属性 (Environment Variables)**:
-     - 支持在项目内定义公共属性（如 `baseUrl`, `apiKey`, `token` 等）。
-     - 支持在 URL、Headers、Body 中使用 `{{var}}` 占位符自动解析求值（如 `{{baseUrl}}/api/v1`、`Authorization: Bearer {{token}}`）。
-  3. **SQLite 全生命周期存储**:
-     - 零配置持久化至 `~/.http_cli.db`。
-     - 记录每次调用的完整上下文：时间戳、频次、项目名、目标域名、参数类型独立归档 (JSON/Form/XML/File)、HTTP 状态码、耗时 (ms) 及响应快照。
-  4. **按域名历史检索与一键回放**:
-     - 支持按目标域名模糊检索历史调用，清晰还原当时的参数与返回，支持一键重放。
-  5. **项目与集合隔离**: 支持按不同系统/微服务创建项目并随时切换当前工作上下文。
-  6. **原生 Linux/WSL 文件上传**: 原生支持多部分表单 (`multipart/form-data`) 与二进制流，支持直接读取本地文件路径上传。
-  7. **开箱即用的全局快捷指令**: 在 `dotfiles/.zshrc` 和 `restore.sh` 中集成了 `req` 快捷指令。
+### 7.1. Cross-Platform Notification Dispatcher (WSL ➡️ Windows)
+- **Problem**: Native Windows toast notifications block chat inputs; standard webpage WebSockets disconnect upon page refresh.
+- **Architecture**:
+  1. WSL file watcher daemon (`inotify`).
+  2. Local WebSocket message broadcast hub.
+  3. **Manifest V3 Browser Extension (Client)**: Persistent background `Service Worker` connection displaying non-intrusive banner notifications injected directly into active tabs.
+
+### 7.2. Safe Pull-Backup Deployer for Legacy Servers (deploy.py / rollback.py)
+- **Problem**: Deploying hundreds of files over raw FTP/SFTP without server-side scripts risks silent overwrites.
+- **Architecture**:
+  1. **Pre-flight Verification**: Prints target host, protocol, and real remote `pwd` with mandatory confirmation.
+  2. **Pull-before-push Backup**: Automatically pulls old files to `~/.deploy_backups/<repo>/<timestamp>/` and verifies downloaded sizes.
+  3. **Atomic Deployment**: Uploads to `.deploy_tmp`, checks size integrity, and executes atomic renames.
+  4. **Manifest & 1-Click Rollback**: Generates `manifest.json` enabling `rollback.py` to restore previous files or delete newly added files.
+
+### 7.3. Interactive CLI HTTP Client & Hub (http_cli.py / req)
+- **Problem**: `curl` / `HTTPie` require remembering complex command flags; GUI clients like Postman are heavyweight and outside terminal workflows.
+- **Architecture**:
+  1. **Zero External Dependencies**: Built with pure Python 3 standard libraries (`urllib`, `sqlite3`, `ssl`, `json`).
+  2. **Single-Keypress Confirmation & Step Navigation**: Instant single-key responses (`y`/`n`/`b` to go back) without hitting Enter; steppable wizard with dedicated Query Parameters editor.
+  3. **Project Variables ({{var}})**: Shared project properties (`baseUrl`, `apiKey`, `token`) auto-interpolated across URL, Headers, and Body.
+  4. **SQLite Lifecycle Persistence**: Automatic logging of latency, status, headers, and responses to `~/.http_cli.db`.
+  5. **Domain History Search & 1-Click Replay**: Filter past requests by domain keyword and replay immediately.
+  6. **Native File Uploads**: Generates standard `multipart/form-data` and binary streams from local Linux/WSL file paths.
+  7. **Global CLI Alias**: Integrated into `dotfiles/.zshrc` and `restore.sh` as `req` / `http-cli`.

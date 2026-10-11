@@ -1,73 +1,69 @@
 #!/bin/bash
 
-echo "开始恢复 Linux/WSL 工作环境..."
+echo "Starting Linux/WSL environment restore..."
 
-# 1. 自动检测包管理器并安装跨发行版的通用软件
+# 1. Detect package manager and install packages across distros
 if [ -f "packages.txt" ]; then
-    echo "正在读取 packages.txt..."
-    # 读取文件，忽略注释行和空行
+    echo "Reading packages.txt..."
     PACKAGES=$(grep -vE "^\s*#" packages.txt | tr '\n' ' ')
     
     if [ -n "$PACKAGES" ]; then
         if command -v apt-get &> /dev/null; then
-            echo "检测到 apt-get (Ubuntu/Debian)，开始安装..."
+            echo "Detected apt-get (Ubuntu/Debian), installing..."
             sudo apt-get update
             sudo apt-get install -y $PACKAGES
         elif command -v dnf &> /dev/null; then
-            echo "检测到 dnf (Fedora/CentOS/RHEL)，开始安装..."
+            echo "Detected dnf (Fedora/CentOS/RHEL/AlmaLinux), installing..."
             sudo dnf install -y $PACKAGES
         elif command -v pacman &> /dev/null; then
-            echo "检测到 pacman (Arch Linux/Manjaro)，开始安装..."
+            echo "Detected pacman (Arch Linux/Manjaro), installing..."
             sudo pacman -Sy --noconfirm $PACKAGES
         elif command -v zypper &> /dev/null; then
-            echo "检测到 zypper (openSUSE)，开始安装..."
+            echo "Detected zypper (openSUSE), installing..."
             sudo zypper install -y $PACKAGES
         elif command -v apk &> /dev/null; then
-            echo "检测到 apk (Alpine Linux)，开始安装..."
+            echo "Detected apk (Alpine Linux), installing..."
             sudo apk add $PACKAGES
         else
-            echo "未找到支持的包管理器，请手动安装 packages.txt 中的包。"
+            echo "No supported package manager found. Please manually install packages from packages.txt."
         fi
     fi
 else
-    echo "未找到 packages.txt，跳过系统软件安装。"
+    echo "packages.txt not found, skipping package installation."
 fi
 
-# 2. 恢复 VSCode 扩展
+# 2. Restore VSCode extensions
 if command -v code &> /dev/null; then
     if [ -f "vscode-extensions.txt" ]; then
-        echo "正在恢复 VSCode 扩展..."
+        echo "Restoring VSCode extensions..."
         cat vscode-extensions.txt | xargs -L 1 code --install-extension
     else
-        echo "未找到 vscode-extensions.txt，跳过。"
+        echo "vscode-extensions.txt not found, skipping."
     fi
 else
-    echo "未检测到 VSCode cli，跳过扩展安装。"
+    echo "VSCode CLI (code) not found, skipping extensions."
 fi
 
-# 3. 恢复配置文件 (Dotfiles)
-echo "正在恢复配置文件..."
+# 3. Restore Dotfiles
+echo "Restoring dotfiles..."
 if [ -d "dotfiles" ]; then
-    # 遍历 dotfiles 目录下的隐藏文件并复制到 ~ 目录
     for file in dotfiles/.*; do
-        # 排除 . 和 .. 目录
         filename=$(basename "$file")
         if [ "$filename" != "." ] && [ "$filename" != ".." ]; then
             cp "$file" ~/"$filename"
-            echo "已恢复 ~/$filename"
+            echo "Restored ~/$filename"
         fi
     done
 else
-    echo "未找到 dotfiles 目录，跳过配置文件的恢复。"
+    echo "dotfiles directory not found, skipping dotfiles restore."
 fi
 
-# 4. 安装自定义 CLI 快捷工具到 ~/.local/bin
-echo "安装自定义 CLI 生产力工具..."
+# 4. Install custom CLI productivity tools to ~/.local/bin
+echo "Installing custom CLI productivity tools to ~/.local/bin..."
 mkdir -p ~/.local/bin
-[ -f "http_cli.py" ] && cp http_cli.py ~/.local/bin/http_cli.py && chmod +x ~/.local/bin/http_cli.py && ln -sf ~/.local/bin/http_cli.py ~/.local/bin/req && echo "已安装全局 CLI 命令: req / http_cli.py"
-[ -f "deploy.py" ] && cp deploy.py ~/.local/bin/deploy.py && chmod +x ~/.local/bin/deploy.py && echo "已安装部署命令: deploy.py"
-[ -f "rollback.py" ] && cp rollback.py ~/.local/bin/rollback.py && chmod +x ~/.local/bin/rollback.py && echo "已安装回滚命令: rollback.py"
+[ -f "http_cli.py" ] && cp http_cli.py ~/.local/bin/http_cli.py && chmod +x ~/.local/bin/http_cli.py && ln -sf ~/.local/bin/http_cli.py ~/.local/bin/req && echo "Installed global CLI tool: req (http_cli.py)"
+[ -f "deploy.py" ] && cp deploy.py ~/.local/bin/deploy.py && chmod +x ~/.local/bin/deploy.py && echo "Installed deploy tool: deploy.py"
+[ -f "rollback.py" ] && cp rollback.py ~/.local/bin/rollback.py && chmod +x ~/.local/bin/rollback.py && echo "Installed rollback tool: rollback.py"
 
 echo "========================================"
-echo "工作环境恢复完成！部分配置可能需要重新启动终端才能生效。"
-
+echo "Environment restore completed! Please restart terminal to apply new configurations."
