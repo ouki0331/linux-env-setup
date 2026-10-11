@@ -5,7 +5,9 @@ Interactive CLI HTTP Client & Project Management Hub (http-cli / req)
 - SQLite persistence: requests history, performance metrics, and project variables
 - Project isolation: organize requests by project/collection
 - Project variables: {{baseUrl}}, {{apiKey}}, {{token}} with auto-interpolation
-- Single keypress response: instant 'y' / 'n' without pressing Enter
+- Instant single keypress: press 1-9 or 'b' directly without pressing Enter
+- Explicit default hints: clear explanation that pressing Enter accepts the default
+- Project name visibility: [Project: <name>] displayed on every step and prompt
 - Steppable wizard: press 'b' at any step to return to the previous step
 - Dedicated Query Parameters management (independent from URL)
 - Full HTTP methods (GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD)
@@ -180,7 +182,7 @@ def save_request_history(project_name, method, url, headers, body_type, body_con
         ))
     conn.close()
 
-def query_history(domain_keyword="", project_name=None, limit=15):
+def query_history(domain_keyword="", project_name=None, limit=9):
     conn = get_db()
     cur = conn.cursor()
     params = []
@@ -217,23 +219,27 @@ def get_single_char():
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
     return ch
 
-def prompt_instant_key(prompt_text, allowed_keys, default_key):
+def prompt_instant_key(project_name, prompt_text, allowed_keys, default_key):
+    proj_tag = f"[{project_name}] " if project_name else ""
     hint = "/".join([f"[{k.upper()}]" if k == default_key else k for k in allowed_keys])
-    cprint(f"\n? {prompt_text} ({hint}) ", Color.CYAN, bold=True, end="")
+    cprint(f"\n{proj_tag}? {prompt_text} ({hint})", Color.CYAN, bold=True)
+    cprint(f"  ℹ️ Tip: Press key directly without Enter. Press Enter to accept default [{default_key.upper()}].", Color.DIM)
+    sys.stdout.write(f"❯ ")
     sys.stdout.flush()
 
     while True:
         ch = get_single_char()
         if ch in ['\r', '\n']:
-            print(f" {default_key.upper()}")
+            print(f"{Color.GREEN}{default_key.upper()} (default){Color.RESET}")
             return default_key
         ch_lower = ch.lower()
         if ch_lower in [k.lower() for k in allowed_keys]:
-            print(f" {ch_lower}")
+            print(f"{Color.GREEN}{ch_lower}{Color.RESET}")
             return ch_lower
 
-def prompt_choice(title, options, default_idx=0, allow_back=True):
-    cprint(f"\n? {title}", Color.CYAN, bold=True)
+def prompt_choice(project_name, title, options, default_idx=0, allow_back=True):
+    proj_tag = f"[{project_name}] " if project_name else ""
+    cprint(f"\n{proj_tag}? {title}", Color.CYAN, bold=True)
     for i, (label, _) in enumerate(options, 1):
         if i - 1 == default_idx:
             cprint(f"  [{i}] {label} (default)", Color.GREEN, bold=True)
@@ -242,24 +248,54 @@ def prompt_choice(title, options, default_idx=0, allow_back=True):
             
     if allow_back:
         cprint(f"  [b] < Back to previous step", Color.YELLOW)
-            
-    while True:
-        prompt_str = f"Enter choice [1-{len(options)}" + (", b=Back" if allow_back else "") + f", default {default_idx+1}]: "
-        choice = input(prompt_str).strip().lower()
-        if not choice:
-            return options[default_idx][1]
-        if allow_back and choice in ["b", "back"]:
-            return "__BACK__"
-        if choice.isdigit():
-            idx = int(choice) - 1
-            if 0 <= idx < len(options):
-                return options[idx][1]
-        cprint("Invalid option. Please try again.", Color.RED)
 
-def prompt_input(title, default="", allow_back=True):
+    # If options count <= 9, use instant single keypress!
+    use_single_key = (len(options) <= 9)
+    allowed_digits = [str(i) for i in range(1, len(options) + 1)]
+
+    back_tip = ", 'b' to go back" if allow_back else ""
+    cprint(f"  ℹ️ Tip: Press 1-{len(options)} directly (no Enter needed){back_tip}, or press Enter to accept default [{default_idx+1}].", Color.DIM)
+    sys.stdout.write(f"❯ ")
+    sys.stdout.flush()
+
+    if use_single_key and HAS_TERMIOS and sys.stdin.isatty():
+        while True:
+            ch = get_single_char()
+            if ch in ['\r', '\n']:
+                val = options[default_idx][1]
+                print(f"{Color.GREEN}{default_idx+1} (default){Color.RESET}")
+                return val
+            ch_lower = ch.lower()
+            if allow_back and ch_lower == 'b':
+                print(f"{Color.YELLOW}b (Back){Color.RESET}")
+                return "__BACK__"
+            if ch_lower in allowed_digits:
+                idx = int(ch_lower) - 1
+                val = options[idx][1]
+                print(f"{Color.GREEN}{ch_lower}{Color.RESET}")
+                return val
+    else:
+        # Fallback for piped non-interactive input or > 9 items
+        while True:
+            choice = input().strip().lower()
+            if not choice:
+                return options[default_idx][1]
+            if allow_back and choice in ["b", "back"]:
+                return "__BACK__"
+            if choice.isdigit():
+                idx = int(choice) - 1
+                if 0 <= idx < len(options):
+                    return options[idx][1]
+            cprint("Invalid option. Please try again.", Color.RED)
+            sys.stdout.write(f"❯ ")
+            sys.stdout.flush()
+
+def prompt_input(project_name, title, default="", allow_back=True):
+    proj_tag = f"[{project_name}] " if project_name else ""
     default_hint = f" [default: {default}]" if default else ""
-    back_hint = " (type 'b' to go back)" if allow_back else ""
-    cprint(f"\n? {title}{default_hint}{back_hint}", Color.CYAN, bold=True)
+    cprint(f"\n{proj_tag}? {title}{default_hint}", Color.CYAN, bold=True)
+    back_tip = " (or type 'b' to go back)" if allow_back else ""
+    cprint(f"  ℹ️ Tip: Press Enter directly to accept default{back_tip}.", Color.DIM)
     val = input("❯ ").strip()
     if allow_back and val.lower() == "b":
         return "__BACK__"
@@ -310,7 +346,7 @@ def run_wizard(current_project, last_config=None):
 
     variables = get_project_variables(current_project)
     if variables:
-        cprint("💡 Available Project Variables (use {{var}} to reference):", Color.YELLOW)
+        cprint(f"💡 [{current_project}] Available Project Variables (use {{var}} to reference):", Color.YELLOW)
         for vk, vv in variables.items():
             masked_v = vv if len(vv) <= 30 else vv[:15] + "..." + vv[-6:]
             cprint(f"   • {{{{{vk}}}}} ➔ {masked_v}", Color.DIM)
@@ -321,7 +357,6 @@ def run_wizard(current_project, last_config=None):
         "url_base": "",
         "query_params": {},
         "auth_type": "none",
-        "auth_header": "",
         "headers": {
             "User-Agent": "Interactive-CLI-HTTP/1.0",
             "Accept": "*/*"
@@ -355,7 +390,7 @@ def run_wizard(current_project, last_config=None):
                     cur_idx = i
                     break
 
-            res = prompt_choice("Step 1/6: Select HTTP Method:", method_options, default_idx=cur_idx, allow_back=False)
+            res = prompt_choice(current_project, "Step 1/6: Select HTTP Method:", method_options, default_idx=cur_idx, allow_back=False)
             state["method"] = res
             step += 1
             continue
@@ -371,17 +406,15 @@ def run_wizard(current_project, last_config=None):
                 else:
                     state["url_base"] = "https://httpbin.org/get" if state["method"] == "GET" else "https://httpbin.org/post"
 
-            res = prompt_input("Step 2/6: Enter Target URL (without query parameters, or paste full URL):", default=state["url_base"])
+            res = prompt_input(current_project, "Step 2/6: Enter Target URL (without query parameters, or paste full URL):", default=state["url_base"])
             if res == "__BACK__":
                 step -= 1
                 continue
 
-            # Parse query parameters if user typed ?foo=bar in URL
             parsed = urllib.parse.urlparse(res)
             if parsed.query:
                 q_dict = dict(urllib.parse.parse_qsl(parsed.query))
                 state["query_params"].update(q_dict)
-                # Keep base URL without query
                 clean_url = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, "", parsed.fragment))
                 state["url_base"] = clean_url
             else:
@@ -395,7 +428,7 @@ def run_wizard(current_project, last_config=None):
         # ----------------------------------------------------
         elif step == 3:
             cprint("\n" + "-"*40, Color.CYAN)
-            cprint("Step 3/6: Query Parameters Configuration", Color.CYAN, bold=True)
+            cprint(f"[{current_project}] Step 3/6: Query Parameters Configuration", Color.CYAN, bold=True)
             if state["query_params"]:
                 cprint("Current Parameters:", Color.GREEN)
                 for k, v in state["query_params"].items():
@@ -409,7 +442,7 @@ def run_wizard(current_project, last_config=None):
                 ("Remove a query parameter", "remove"),
                 ("Clear all parameters", "clear")
             ]
-            p_action = prompt_choice("Parameter Options:", param_options, default_idx=0)
+            p_action = prompt_choice(current_project, "Parameter Options:", param_options, default_idx=0)
             if p_action == "__BACK__":
                 step -= 1
                 continue
@@ -417,9 +450,9 @@ def run_wizard(current_project, last_config=None):
                 step += 1
                 continue
             elif p_action == "add":
-                param_key = prompt_input("Parameter Key:", allow_back=False)
+                param_key = prompt_input(current_project, "Parameter Key:", allow_back=False)
                 if param_key:
-                    param_val = prompt_input(f"Value for '{param_key}':", allow_back=False)
+                    param_val = prompt_input(current_project, f"Value for '{param_key}':", allow_back=False)
                     state["query_params"][param_key] = param_val
                     cprint(f"  ✅ Added parameter: {param_key}={param_val}", Color.GREEN)
                 continue
@@ -428,7 +461,7 @@ def run_wizard(current_project, last_config=None):
                     cprint("No parameters to remove.", Color.YELLOW)
                     continue
                 rem_options = [(f"{k} = {v}", k) for k, v in state["query_params"].items()]
-                rem_key = prompt_choice("Select parameter to remove:", rem_options, default_idx=0)
+                rem_key = prompt_choice(current_project, "Select parameter to remove:", rem_options, default_idx=0)
                 if rem_key != "__BACK__":
                     state["query_params"].pop(rem_key, None)
                     cprint(f"  ✅ Removed parameter: {rem_key}", Color.GREEN)
@@ -443,14 +476,14 @@ def run_wizard(current_project, last_config=None):
         # ----------------------------------------------------
         elif step == 4:
             cprint("\n" + "-"*40, Color.CYAN)
-            cprint("Step 4/6: Authentication & Headers", Color.CYAN, bold=True)
+            cprint(f"[{current_project}] Step 4/6: Authentication & Headers", Color.CYAN, bold=True)
 
             auth_options = [
                 ("No Authentication (default)", "none"),
                 ("Bearer Token (JWT / API Token)", "bearer"),
                 ("Basic Auth (Username + Password with Auto-Base64)", "basic")
             ]
-            auth_res = prompt_choice("Configure Authentication:", auth_options, default_idx=0)
+            auth_res = prompt_choice(current_project, "Configure Authentication:", auth_options, default_idx=0)
             if auth_res == "__BACK__":
                 step -= 1
                 continue
@@ -458,24 +491,23 @@ def run_wizard(current_project, last_config=None):
             state["auth_type"] = auth_res
             if auth_res == "bearer":
                 token_def = "{{token}}" if "token" in variables else ("{{apiKey}}" if "apiKey" in variables else "")
-                token_val = prompt_input("Enter Bearer Token (supports {{var}}):", default=token_def, allow_back=False)
+                token_val = prompt_input(current_project, "Enter Bearer Token (supports {{var}}):", default=token_def, allow_back=False)
                 if token_val:
                     state["headers"]["Authorization"] = f"Bearer {token_val}"
             elif auth_res == "basic":
-                u = prompt_input("Basic Auth Username:", allow_back=False)
-                p = prompt_input("Basic Auth Password:", allow_back=False)
+                u = prompt_input(current_project, "Basic Auth Username:", allow_back=False)
+                p = prompt_input(current_project, "Basic Auth Password:", allow_back=False)
                 token_str = base64.b64encode(f"{u}:{p}".encode("utf-8")).decode("utf-8")
                 state["headers"]["Authorization"] = f"Basic {token_str}"
                 cprint("  ✅ Basic Auth header generated.", Color.GREEN)
             else:
                 state["headers"].pop("Authorization", None)
 
-            # Additional Custom Headers
-            cprint("\nCurrent Request Headers:", Color.DIM)
+            cprint(f"\n[{current_project}] Current Request Headers:", Color.DIM)
             for k, v in state["headers"].items():
                 cprint(f"  • {k}: {v}", Color.DIM)
 
-            add_h_key = prompt_instant_key("Add custom headers? (e.g. X-Trace-Id)", ["y", "n", "b"], default_key="n")
+            add_h_key = prompt_instant_key(current_project, "Add custom headers? (e.g. X-Trace-Id)", ["y", "n", "b"], default_key="n")
             if add_h_key == "b":
                 step -= 1
                 continue
@@ -507,7 +539,7 @@ def run_wizard(current_project, last_config=None):
                 continue
 
             cprint("\n" + "-"*40, Color.CYAN)
-            cprint(f"Step 5/6: Request Body Configuration ({state['method']})", Color.CYAN, bold=True)
+            cprint(f"[{current_project}] Step 5/6: Request Body Configuration ({state['method']})", Color.CYAN, bold=True)
 
             body_type_options = [
                 ("JSON (application/json)", "json"),
@@ -516,7 +548,7 @@ def run_wizard(current_project, last_config=None):
                 ("File Upload (Multipart / Binary)", "file"),
                 ("Empty Body (No payload)", "none")
             ]
-            b_choice = prompt_choice("Select Body Type:", body_type_options, default_idx=0)
+            b_choice = prompt_choice(current_project, "Select Body Type:", body_type_options, default_idx=0)
             if b_choice == "__BACK__":
                 step -= 1
                 continue
@@ -525,19 +557,19 @@ def run_wizard(current_project, last_config=None):
             if b_choice == "json":
                 state["headers"]["Content-Type"] = "application/json"
                 def_json = state["raw_body_content"] or '{"msg": "hello"}'
-                json_in = prompt_input("Enter JSON Payload (supports {{var}}):", default=def_json)
+                json_in = prompt_input(current_project, "Enter JSON Payload (supports {{var}}):", default=def_json)
                 if json_in == "__BACK__":
                     continue
                 state["raw_body_content"] = json_in
             elif b_choice == "form":
                 state["headers"]["Content-Type"] = "application/x-www-form-urlencoded"
                 def_form = state["raw_body_content"] or "username=admin&action=test"
-                form_in = prompt_input("Enter Form Data (key=value&...):", default=def_form)
+                form_in = prompt_input(current_project, "Enter Form Data (key=value&...):", default=def_form)
                 if form_in == "__BACK__":
                     continue
                 state["raw_body_content"] = form_in
             elif b_choice == "xml":
-                ct_sub = prompt_choice("Choose Specific Content-Type:", [("application/xml", "application/xml"), ("text/plain", "text/plain")], default_idx=0)
+                ct_sub = prompt_choice(current_project, "Choose Specific Content-Type:", [("application/xml", "application/xml"), ("text/plain", "text/plain")], default_idx=0)
                 if ct_sub == "__BACK__":
                     continue
                 state["headers"]["Content-Type"] = ct_sub
@@ -550,10 +582,10 @@ def run_wizard(current_project, last_config=None):
                     lines.append(line)
                 state["raw_body_content"] = "\n".join(lines)
             elif b_choice == "file":
-                file_path = prompt_input("Enter Local File Path (Linux/WSL path):")
+                file_path = prompt_input(current_project, "Enter Local File Path (Linux/WSL path):")
                 if file_path == "__BACK__":
                     continue
-                upload_mode = prompt_choice("Select Upload Mode:", [
+                upload_mode = prompt_choice(current_project, "Select Upload Mode:", [
                     ("Multipart Form-Data (standard web uploads)", "multipart"),
                     ("Raw Binary Octet-Stream", "binary")
                 ], default_idx=0)
@@ -561,7 +593,7 @@ def run_wizard(current_project, last_config=None):
                     continue
 
                 if upload_mode == "multipart":
-                    field_name = prompt_input("Enter Form Field Name:", default="file", allow_back=False)
+                    field_name = prompt_input(current_project, "Enter Form Field Name:", default="file", allow_back=False)
                     try:
                         b_bytes, ct_header, fname = build_multipart_body(file_path, field_name=field_name)
                         state["headers"]["Content-Type"] = ct_header
@@ -593,7 +625,6 @@ def run_wizard(current_project, last_config=None):
         # STEP 6: Pre-send Summary & Instant Single-Key Confirmation
         # ----------------------------------------------------
         elif step == 6:
-            # Construct final URL with query parameters & variables
             raw_url_full = state["url_base"]
             if state["query_params"]:
                 qs = urllib.parse.urlencode(state["query_params"])
@@ -620,7 +651,7 @@ def run_wizard(current_project, last_config=None):
             curl_cmd = build_curl(state["method"], actual_url, actual_headers, body_payload)
 
             print("\n" + "="*50)
-            cprint("📋 Step 6/6: Request Overview Card", Color.MAGENTA, bold=True)
+            cprint(f"📋 [{current_project}] Step 6/6: Request Overview Card", Color.MAGENTA, bold=True)
             cprint(f"Project : {current_project}", Color.WHITE)
             cprint(f"Method  : {state['method']}", Color.WHITE, bold=True)
             if raw_url_full != actual_url:
@@ -640,8 +671,7 @@ def run_wizard(current_project, last_config=None):
             cprint(f"Equivalent cURL: {curl_cmd}", Color.DIM)
             print("="*50)
 
-            # Instant Single Key Confirmation (y = Send, n = Cancel, b = Go back)
-            key_choice = prompt_instant_key("Send request now? (y=Send, n=Cancel, b=Back)", ["y", "n", "b"], default_key="y")
+            key_choice = prompt_instant_key(current_project, "Send request now? (y=Send, n=Cancel, b=Back)", ["y", "n", "b"], default_key="y")
             if key_choice == "b":
                 step -= 1
                 continue
@@ -649,7 +679,6 @@ def run_wizard(current_project, last_config=None):
                 cprint("Request cancelled by user.", Color.YELLOW)
                 return
 
-            # Execute Request!
             execute_and_record(
                 project_name=current_project,
                 method=state["method"],
@@ -679,7 +708,7 @@ def build_curl(method, url, headers, body_data):
     return " ".join(parts)
 
 def execute_and_record(project_name, method, url, headers, body_type, body_content_record, body_data):
-    cprint("\n⏳ Sending HTTP request...", Color.YELLOW)
+    cprint(f"\n⏳ [{project_name}] Sending HTTP request...", Color.YELLOW)
     req = urllib.request.Request(url, data=body_data, headers=headers, method=method)
     
     ctx = ssl.create_default_context()
@@ -707,7 +736,7 @@ def execute_and_record(project_name, method, url, headers, body_type, body_conte
     except Exception as e:
         elapsed_ms = (time.time() - start_time) * 1000
         resp_snippet = f"Error: {e}"
-        cprint(f"\n❌ Request failed ({elapsed_ms:.1f}ms): {e}", Color.RED, bold=True)
+        cprint(f"\n❌ [{project_name}] Request failed ({elapsed_ms:.1f}ms): {e}", Color.RED, bold=True)
     finally:
         try:
             save_request_history(
@@ -722,7 +751,7 @@ def execute_and_record(project_name, method, url, headers, body_type, body_conte
                 resp_headers=resp_headers,
                 resp_snippet=resp_snippet[:1000]
             )
-            cprint("💾 Request logged to SQLite database (~/.http_cli.db)", Color.DIM)
+            cprint(f"💾 [{project_name}] Request logged to SQLite database (~/.http_cli.db)", Color.DIM)
         except Exception as db_err:
             cprint(f"⚠️ Failed to log to SQLite: {db_err}", Color.RED)
 
@@ -780,38 +809,38 @@ def manage_variables_flow(current_project):
 
         vars_dict = get_project_variables(current_project)
         if vars_dict:
-            cprint("Current Project Variables:", Color.GREEN)
+            cprint(f"[{current_project}] Defined Public Variables:", Color.GREEN)
             for k, v in vars_dict.items():
                 cprint(f"  • {{{{{k}}}}} = {v}", Color.WHITE)
         else:
-            cprint("No variables defined for this project yet.", Color.DIM)
+            cprint(f"[{current_project}] No variables defined yet.", Color.DIM)
 
         options = [
             ("Add / Update Variable (e.g. baseUrl, apiKey)", "set"),
             ("Delete Variable", "del"),
             ("Back to Main Menu", "back")
         ]
-        choice = prompt_choice("Select Variable Action:", options, default_idx=0, allow_back=False)
+        choice = prompt_choice(current_project, "Select Variable Action:", options, default_idx=0, allow_back=False)
 
         if choice == "back":
             break
         elif choice == "set":
-            key = prompt_input("Variable Name (e.g. baseUrl, token):", allow_back=False)
+            key = prompt_input(current_project, "Variable Name (e.g. baseUrl, token):", allow_back=False)
             if not key:
                 continue
-            val = prompt_input(f"Value for {{{{{key}}}}}:", allow_back=False)
+            val = prompt_input(current_project, f"Value for {{{{{key}}}}}:", allow_back=False)
             set_project_variable(current_project, key, val)
-            cprint(f"✅ Saved variable {{{{{key}}}}} = {val}", Color.GREEN, bold=True)
+            cprint(f"✅ [{current_project}] Saved variable {{{{{key}}}}} = {val}", Color.GREEN, bold=True)
         elif choice == "del":
             if not vars_dict:
-                cprint("No variables to delete.", Color.YELLOW)
+                cprint(f"[{current_project}] No variables to delete.", Color.YELLOW)
                 continue
             del_options = [(f"{{{{{k}}}}} = {v}", k) for k, v in vars_dict.items()]
             del_options.append(("Cancel", None))
-            target_key = prompt_choice("Select variable to delete:", del_options, default_idx=0, allow_back=False)
+            target_key = prompt_choice(current_project, "Select variable to delete:", del_options, default_idx=0, allow_back=False)
             if target_key:
                 delete_project_variable(current_project, target_key)
-                cprint(f"✅ Deleted variable {{{{{target_key}}}}}", Color.GREEN, bold=True)
+                cprint(f"✅ [{current_project}] Deleted variable {{{{{target_key}}}}}", Color.GREEN, bold=True)
 
 # ==========================================
 # History Search & Instant Replay
@@ -821,29 +850,29 @@ def view_history_flow(current_project):
     cprint(f"🔍 History Search & Replay [Project: {current_project}]", Color.CYAN, bold=True)
     cprint("="*50, Color.CYAN, bold=True)
 
-    search_scope = prompt_choice("Search Scope:", [
+    search_scope = prompt_choice(current_project, "Search Scope:", [
         (f"Current Project only ({current_project})", "current"),
         ("All Projects", "all")
     ], default_idx=0, allow_back=False)
 
     proj_filter = current_project if search_scope == "current" else None
-    domain_kw = prompt_input("Filter by domain keyword (e.g. github.com, Enter for all):", default="", allow_back=False)
+    domain_kw = prompt_input(current_project, "Filter by domain keyword (e.g. github.com, Enter for all):", default="", allow_back=False)
 
-    records = query_history(domain_keyword=domain_kw, project_name=proj_filter, limit=15)
+    records = query_history(domain_keyword=domain_kw, project_name=proj_filter, limit=9)
     if not records:
-        cprint("No matching history records found.", Color.YELLOW)
+        cprint(f"[{current_project}] No matching history records found.", Color.YELLOW)
         return
 
-    cprint(f"\nFound {len(records)} recent records:", Color.GREEN, bold=True)
+    cprint(f"\n[{current_project}] Found {len(records)} recent records:", Color.GREEN, bold=True)
     options = []
     for r in records:
         status_tag = f"[{r['status_code']}]" if r['status_code'] else "[ERR]"
         time_tag = r['created_at'][:16]
-        desc = f"{time_tag} | {r['method']:<6} | {status_tag} | {r['domain']} | {r['url']}"
+        desc = f"{time_tag} | {r['method']:<6} | {status_tag} | {r['domain']}"
         options.append((desc, r))
     options.append(("Back to Main Menu", None))
 
-    selected = prompt_choice("Select a request to inspect / replay:", options, default_idx=0, allow_back=False)
+    selected = prompt_choice(current_project, "Select a request to inspect / replay:", options, default_idx=0, allow_back=False)
     if selected is None:
         return
 
@@ -856,7 +885,7 @@ def view_history_flow(current_project):
     cprint(f"Response  : {selected['response_snippet'][:200]}...", Color.DIM)
     print("-"*50)
 
-    replay_key = prompt_instant_key("Replay this request now? (y/n)", ["y", "n"], default_key="y")
+    replay_key = prompt_instant_key(current_project, "Replay this request now? (y/n)", ["y", "n"], default_key="y")
     if replay_key == "y":
         headers = json.loads(selected['headers_json']) if selected['headers_json'] else {}
         b_type = selected['body_type']
@@ -880,19 +909,19 @@ def view_history_flow(current_project):
 # ==========================================
 def manage_projects_flow(current_project):
     cprint("\n" + "="*50, Color.CYAN, bold=True)
-    cprint("📁 Projects & Collections", Color.CYAN, bold=True)
+    cprint(f"📁 Projects & Collections [Active: {current_project}]", Color.CYAN, bold=True)
     cprint("="*50, Color.CYAN, bold=True)
 
     projects = list_projects()
-    options = [(f"Switch to: {p}" + (" (ACTIVE)" if p == current_project else ""), p) for p in projects]
+    options = [(f"{p}" + (" (ACTIVE)" if p == current_project else ""), p) for p in projects]
     options.append(("+ Create New Project", "__NEW__"))
     options.append(("Back to Main Menu", "__BACK__"))
 
-    choice = prompt_choice("Select Project Action:", options, default_idx=0, allow_back=False)
+    choice = prompt_choice(current_project, "Select Project Action:", options, default_idx=0, allow_back=False)
     if choice == "__BACK__":
         return current_project
     elif choice == "__NEW__":
-        new_name = prompt_input("Enter new project name (e.g. payment-service, auth-api):", allow_back=False)
+        new_name = prompt_input(current_project, "Enter new project name (e.g. payment-service, auth-api):", allow_back=False)
         if new_name:
             if create_project(new_name):
                 cprint(f"✅ Created project [{new_name}] and set as active!", Color.GREEN, bold=True)
@@ -913,7 +942,7 @@ def main():
 
     while True:
         cprint("\n" + "="*50, Color.BLUE, bold=True)
-        cprint("🌐 Interactive HTTP Client & Hub (http-cli)", Color.BLUE, bold=True)
+        cprint("🌐 Interactive HTTP Client & Hub (http-cli / req)", Color.BLUE, bold=True)
         cprint(f"📁 Active Project: [{current_project}]", Color.MAGENTA, bold=True)
         cprint(f"💾 Storage: SQLite ({DB_PATH})", Color.DIM)
         cprint("="*50, Color.BLUE, bold=True)
@@ -925,7 +954,7 @@ def main():
             ("Projects & Collections", "projects"),
             ("Exit", "exit")
         ]
-        action = prompt_choice("Select Action:", main_options, default_idx=0, allow_back=False)
+        action = prompt_choice(current_project, "Select Main Action:", main_options, default_idx=0, allow_back=False)
 
         if action == "new_request":
             run_wizard(current_project)
@@ -936,7 +965,7 @@ def main():
         elif action == "projects":
             current_project = manage_projects_flow(current_project)
         elif action == "exit":
-            cprint("\n👋 Goodbye!", Color.GREEN, bold=True)
+            cprint(f"\n👋 [{current_project}] Goodbye!", Color.GREEN, bold=True)
             break
 
 if __name__ == "__main__":
