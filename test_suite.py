@@ -212,6 +212,12 @@ if rust_bin.is_file():
     assert "アーカイブ" in proc_tar.stdout, "Rust binary card should include Japanese documentation"
     print("Verified Rust binary: direct lookup 'help-desk tar' output.")
 
+build_sh = Path("build_help_desk.sh")
+assert build_sh.is_file(), "build_help_desk.sh script should exist"
+import os
+assert os.access(build_sh, os.X_OK), "build_help_desk.sh should be executable"
+print("Verified build_help_desk.sh script existence and executable bit.")
+
 print("="*60)
 print("🎉 All integration and Help Desk tests completed successfully!")
 
