@@ -6,3 +6,6 @@ __pycache__/
 .http_cli.db
 .help_desk.db
 help_desk_ai_prompt.txt
+target/
+crates/**/target/
+*.csv

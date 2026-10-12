@@ -1,0 +1,411 @@
+[
+  {
+    "command": "git",
+    "category_ja": "開発・エディタ",
+    "category_en": "Dev & Editors",
+    "summary_ja": "ソースコードの履歴管理を行う分散型バージョン管理システム",
+    "summary_en": "Distributed version control system tracking source code history",
+    "description_ja": "コードの変更履歴を記録し、複数人での共同開発や過去の状態への巻き戻し、ブランチを用いた並行開発を行うための業界標準ツールです。",
+    "description_en": "Industry-standard VCS that tracks file changes, manages branches, coordinates collaborative development, and enables seamless rollbacks.",
+    "syntax": "git <subcommand> [options] [args]",
+    "options": [
+      { "flag": "status", "desc_ja": "作業ツリーとステージングエリアの状態を確認", "desc_en": "Show the working tree status" },
+      { "flag": "add <path>", "desc_ja": "変更をステージングエリアに追加", "desc_en": "Add file contents to the staging area" },
+      { "flag": "commit -m '<msg>'", "desc_ja": "ステージされた変更を記録", "desc_en": "Record changes to the repository" },
+      { "flag": "push", "desc_ja": "ローカルのコミットをリモートへ送信", "desc_en": "Update remote refs along with associated objects" },
+      { "flag": "pull", "desc_ja": "リモートの変更を取得して統合", "desc_en": "Fetch from and integrate with remote branch" }
+    ],
+    "examples": [
+      { "description_ja": "変更履歴を1行グラフ形式で確認する", "description_en": "View commit log in single-line graph format", "command": "git log --oneline --graph" },
+      { "description_ja": "特定ファイルの変更差分を確認する", "description_en": "Inspect unstaged diff for a specific file", "command": "git diff <file>" },
+      { "description_ja": "新規ブランチを作成して即座に切り替える", "description_en": "Create and switch to a new branch", "command": "git checkout -b feature/login" }
+    ]
+  },
+  {
+    "command": "curl",
+    "category_ja": "ネットワーク・通信",
+    "category_en": "Network & HTTP",
+    "summary_ja": "URLを指定してサーバーとデータ送受信を行うコマンドラインHTTPツール",
+    "summary_en": "Command-line tool for transferring data with URLs using HTTP/S, FTP, etc.",
+    "description_ja": "APIエンドポイントの疎通確認、ヘッダー情報の検査、ファイルのダウンロード、POSTリクエスト送信などをターミナルから直接実行できます。",
+    "description_en": "Flexible command-line HTTP client widely used for API testing, header inspection, file downloads, and sending custom payloads.",
+    "syntax": "curl [options] <URL>",
+    "options": [
+      { "flag": "-I, --head", "desc_ja": "レスポンスヘッダーのみを取得", "desc_en": "Show response headers only" },
+      { "flag": "-s, --silent", "desc_ja": "進捗ログを非表示にする静寂モード", "desc_en": "Silent mode without progress meter" },
+      { "flag": "-X <method>", "desc_ja": "HTTPリクエストメソッドを指定", "desc_en": "Specify custom HTTP request method" },
+      { "flag": "-H '<header>'", "desc_ja": "カスタムHTTPヘッダーを指定", "desc_en": "Pass custom header to server" },
+      { "flag": "-d '<data>'", "desc_ja": "POSTリクエスト本文を送信", "desc_en": "Send HTTP POST payload data" }
+    ],
+    "examples": [
+      { "description_ja": "Webサーバーのステータスとヘッダーを確認する", "description_en": "Inspect HTTP response status and headers", "command": "curl -I https://httpbin.org/get" },
+      { "description_ja": "JSONデータをPOST送信する", "description_en": "Send a JSON payload via POST", "command": "curl -X POST https://httpbin.org/post -H 'Content-Type: application/json' -d '{\"user\":\"ouki\"}'" },
+      { "description_ja": "リダイレクトを自動追跡して保存する", "description_en": "Follow redirects and save output to file", "command": "curl -L -o download.tar.gz https://example.com/archive.tar.gz" }
+    ]
+  },
+  {
+    "command": "wget",
+    "category_ja": "ネットワーク・通信",
+    "category_en": "Network & HTTP",
+    "summary_ja": "バックグラウンド実行や再帰ダウンロードに対応したダウンローダー",
+    "summary_en": "Non-interactive network downloader with resume support",
+    "description_ja": "HTTP/HTTPS/FTP経由でファイルを確実に取得します。回線切断時の自動リトライやレジューム（中断再開）機能が強力です。",
+    "description_en": "Reliable command-line downloader capable of resuming interrupted transfers and running in the background.",
+    "syntax": "wget [options] <URL>",
+    "options": [
+      { "flag": "-c, --continue", "desc_ja": "部分ダウンロードの続きから再開", "desc_en": "Resume getting a partially-downloaded file" },
+      { "flag": "-O <file>", "desc_ja": "保存先のファイル名を指定", "desc_en": "Write output to specific filename" },
+      { "flag": "-b, --background", "desc_ja": "バックグラウンドでダウンロード実行", "desc_en": "Go to background immediately after startup" },
+      { "flag": "-q, --quiet", "desc_ja": "進捗ログを出力しない静寂モード", "desc_en": "Quiet mode (no output)" }
+    ],
+    "examples": [
+      { "description_ja": "大容量ファイルを別名で保存する", "description_en": "Download file with custom filename", "command": "wget -O setup.tar.gz https://example.com/large-file.tar.gz" },
+      { "description_ja": "中断したダウンロードを再開する", "description_en": "Resume an interrupted download", "command": "wget -c https://example.com/large-file.tar.gz" }
+    ]
+  },
+  {
+    "command": "zsh",
+    "category_ja": "開発・エディタ",
+    "category_en": "Dev & Editors",
+    "summary_ja": "強力なコマンド補完と拡張性を誇る高機能対話型シェル",
+    "summary_en": "Advanced interactive command shell with powerful completion and themes",
+    "description_ja": "Bashの上位互換として開発され、強力なパス補完、プラグイン機構、テーマ機能、スペル修正、共有コマンド履歴などを提供します。",
+    "description_en": "Designed for interactive use, Zsh incorporates features from bash, ksh, and tcsh with superior tab completion and themes.",
+    "syntax": "zsh [options] [script_file]",
+    "options": [
+      { "flag": "-c <cmd>", "desc_ja": "指定した文字列をコマンドとして実行", "desc_en": "Execute command string and exit" },
+      { "flag": "-i", "desc_ja": "対話型シェルとして起動", "desc_en": "Start interactive shell" }
+    ],
+    "examples": [
+      { "description_ja": "設定ファイルを再読み込みして最新設定を反映する", "description_en": "Reload configuration file", "command": "source ~/.zshrc" },
+      { "description_ja": "デフォルトシェルをZshに変更する", "description_en": "Change default login shell to Zsh", "command": "chsh -s $(which zsh)" }
+    ]
+  },
+  {
+    "command": "tmux",
+    "category_ja": "開発・エディタ",
+    "category_en": "Dev & Editors",
+    "summary_ja": "SSH切断後もプロセスを維持できるターミナルマルチプレクサ",
+    "summary_en": "Terminal multiplexer managing multiple split panes and detachable sessions",
+    "description_ja": "1つの端末ウィンドウ内で複数の仮想画面（ペイン）を縦横に分割したり、セッションをバックグラウンドに保持（デタッチ/アタッチ）できます。",
+    "description_en": "Enables switching between several programs in one terminal, detaching sessions that continue running in background, and splitting windows.",
+    "syntax": "tmux [subcommand] [options]",
+    "options": [
+      { "flag": "new -s <name>", "desc_ja": "名前付き新規セッションを開始", "desc_en": "Create named session" },
+      { "flag": "attach -t <name>", "desc_ja": "既存セッションに再接続", "desc_en": "Attach to existing session" },
+      { "flag": "ls", "desc_ja": "実行中のセッション一覧を表示", "desc_en": "List running tmux sessions" },
+      { "flag": "kill-session -t <name>", "desc_ja": "指定したセッションを終了", "desc_en": "Terminate specified session" }
+    ],
+    "examples": [
+      { "description_ja": "新規セッション 'work' を立ち上げる", "description_en": "Start a new named session", "command": "tmux new -s work" },
+      { "description_ja": "デタッチ（セッションを維持したまま抜ける）", "description_en": "Detach session (runs in background)", "command": "Ctrl+b then press d" },
+      { "description_ja": "既存の 'work' セッションに復帰する", "description_en": "Reattach to background session", "command": "tmux attach -t work" }
+    ]
+  },
+  {
+    "command": "vim",
+    "category_ja": "開発・エディタ",
+    "category_en": "Dev & Editors",
+    "summary_ja": "モーダル編集（ノーマル/挿入/コマンド）を採用した高機能CLIエディタ",
+    "summary_en": "Ubiquitous modal text editor with extensive keybindings and scripting",
+    "description_ja": "GUIのないサーバー環境でも高速かつ効率的にファイルを編集できる、Linux標準の定番テキストエディタです。",
+    "description_en": "Highly configurable text editor built to enable efficient text editing without graphical interface requirements.",
+    "syntax": "vim [options] <file>",
+    "options": [
+      { "flag": "-R", "desc_ja": "読み取り専用モードで開く", "desc_en": "Open in read-only mode" },
+      { "flag": "+<line>", "desc_ja": "指定した行番号にカーソルを置いて開く", "desc_en": "Open file at specific line number" }
+    ],
+    "examples": [
+      { "description_ja": "ファイルを編集する", "description_en": "Edit configuration file", "command": "vim config.yaml" },
+      { "description_ja": "保存して終了する", "description_en": "Save and quit editor", "command": ":wq (in normal mode)" },
+      { "description_ja": "保存せずに強制終了する", "command": ":q! (in normal mode)", "desc_en": "Force quit without saving" }
+    ]
+  },
+  {
+    "command": "tree",
+    "category_ja": "ファイル操作・圧縮",
+    "category_en": "File Ops & Archives",
+    "summary_ja": "ディレクトリとファイルの階層構造を視覚的なツリー図で表示するツール",
+    "summary_en": "Recursive directory listing program generating depth-indented file trees",
+    "description_ja": "プロジェクトの構成を把握したいときや、ドキュメント・README用にディレクトリ図を生成したいときに重宝します。",
+    "description_en": "Visual directory listing utility that produces a depth-indented tree of files, ideal for documentation and architectural review.",
+    "syntax": "tree [options] [path]",
+    "options": [
+      { "flag": "-L <depth>", "desc_ja": "表示する階層の最大深さを制限", "desc_en": "Max display depth of directory tree" },
+      { "flag": "-a", "desc_ja": "隠しファイルも含めてすべて表示", "desc_en": "All files are listed (including hidden)" },
+      { "flag": "-d", "desc_ja": "ディレクトリのみをツリー表示", "desc_en": "List directories only" },
+      { "flag": "-I '<pattern>'", "desc_ja": "指定したパターンを除外", "desc_en": "Exclude matching pattern (e.g. 'node_modules|.git')" }
+    ],
+    "examples": [
+      { "description_ja": "深さ2階層までディレクトリ構造を表示する", "description_en": "Display directory tree limited to depth 2", "command": "tree -L 2" },
+      { "description_ja": "node_modulesとgitディレクトリを除外して表示", "description_en": "Exclude node_modules and .git folders", "command": "tree -I 'node_modules|.git'" }
+    ]
+  },
+  {
+    "command": "jq",
+    "category_ja": "システム監視・プロセス",
+    "category_en": "System & Processes",
+    "summary_ja": "コマンドライン上でJSONデータを整形・抽出・変換する軽量プロセッサ",
+    "summary_en": "Lightweight and flexible command-line JSON processor and filter",
+    "description_ja": "curlで取得したAPIレスポンスの色付け整形、特定キーの値の取り出し、配列のループ処理、マッピングなどを強力にサポートします。",
+    "description_en": "Like sed for JSON data: slice, filter, map, and transform structured JSON directly in shell pipelines.",
+    "syntax": "jq [options] '<filter>' [file/stdin]",
+    "options": [
+      { "flag": ".", "desc_ja": "JSON全体をインデント付きカラー表示で整形", "desc_en": "Pretty-print entire JSON stream" },
+      { "flag": "-r, --raw-output", "desc_ja": "前後のダブルクォートを取り除いて出力", "desc_en": "Output raw strings without double quotes" },
+      { "flag": "-c, --compact-output", "desc_ja": "1行のコンパクトなJSONとして出力", "desc_en": "Compact output on a single line" }
+    ],
+    "examples": [
+      { "description_ja": "curlのJSONレスポンスを見やすく整形する", "description_en": "Format and colorize JSON response", "command": "curl -s https://httpbin.org/get | jq ." },
+      { "description_ja": "JSONから特定プロパティの値のみを取り出す", "description_en": "Extract single field value as raw text", "command": "cat package.json | jq -r '.version'" }
+    ]
+  },
+  {
+    "command": "htop",
+    "category_ja": "システム監視・プロセス",
+    "category_en": "System & Processes",
+    "summary_ja": "CPU・メモリおよびプロセスを視覚的に監視・操作する対話型モニター",
+    "summary_en": "Interactive process viewer and system resource utilization monitor",
+    "description_ja": "標準のtopコマンドより格段に見やすく、CPU各コアの使用率やメモリ消費、プロセスのツリー表示、シグナル送信（Kill）が可能です。",
+    "description_en": "Cross-platform interactive process viewer showing CPU core bars, memory graphs, and tree process hierarchy.",
+    "syntax": "htop [options]",
+    "options": [
+      { "flag": "-d <delay>", "desc_ja": "画面の更新間隔（1/10秒単位）を指定", "desc_en": "Delay between updates in tenths of seconds" },
+      { "flag": "-u <user>", "desc_ja": "指定したユーザーのプロセスのみを表示", "desc_en": "Show only processes of specified user" }
+    ],
+    "examples": [
+      { "description_ja": "対話型モニターを起動する", "description_en": "Launch interactive monitor", "command": "htop" },
+      { "description_ja": "rootユーザーのプロセスのみを監視する", "description_en": "Filter processes owned by root", "command": "htop -u root" }
+    ]
+  },
+  {
+    "command": "unzip",
+    "category_ja": "ファイル操作・圧縮",
+    "category_en": "File Ops & Archives",
+    "summary_ja": "ZIP形式で圧縮されたアーカイブファイルを展開・閲覧するユーティリティ",
+    "summary_en": "List, test and extract compressed files from ZIP archives",
+    "description_ja": "Windows等で作成された.zipファイルをLinux環境で解凍したり、解凍前に中身のファイルリストを確認できます。",
+    "description_en": "Standard command for decompressing .zip archives and viewing archive directory entries without extracting.",
+    "syntax": "unzip [options] <archive.zip> [-d target_dir]",
+    "options": [
+      { "flag": "-l", "desc_ja": "展開せずにZIP内の一覧を表示", "desc_en": "List archive files without extraction" },
+      { "flag": "-d <path>", "desc_ja": "展開先のディレクトリを指定", "desc_en": "Target directory to extract files into" },
+      { "flag": "-q", "desc_ja": "展開時の出力を抑制する静寂モード", "desc_en": "Quiet mode" },
+      { "flag": "-o", "desc_ja": "既存ファイルを警告なしで上書き", "desc_en": "Overwrite existing files without prompting" }
+    ],
+    "examples": [
+      { "description_ja": "ZIPファイルを特定ディレクトリに展開する", "description_en": "Extract zip archive to target directory", "command": "unzip archive.zip -d ./extracted_folder" },
+      { "description_ja": "解凍せずに中身のファイル一覧を確認する", "description_en": "List contents of zip without extraction", "command": "unzip -l archive.zip" }
+    ]
+  },
+  {
+    "command": "tar",
+    "category_ja": "ファイル操作・圧縮",
+    "category_en": "File Ops & Archives",
+    "summary_ja": "複数ファイルのアーカイブ化およびgzip/bzip2/xzによる圧縮・解凍ツール",
+    "summary_en": "De facto standard utility for creating and extracting tar.gz / tar.xz archives",
+    "description_ja": "Linux環境におけるバックアップや配布ファイルのデファクトスタンダードです。.tar.gz や .tar.xz などの作成と展開を担います。",
+    "description_en": "Archiving utility that packs directory structures into a single file and compresses with gzip, bzip2, or xz.",
+    "syntax": "tar [options] [archive] [target]",
+    "options": [
+      { "flag": "-c", "desc_ja": "新規アーカイブを作成", "desc_en": "Create a new archive" },
+      { "flag": "-x", "desc_ja": "アーカイブを展開・解凍", "desc_en": "Extract files from archive" },
+      { "flag": "-z", "desc_ja": "gzipアルゴリズムで圧縮/解凍 (.tar.gz)", "desc_en": "Filter through gzip (.tar.gz)" },
+      { "flag": "-v", "desc_ja": "処理中のファイル名を詳細表示", "desc_en": "Verbosely list files processed" },
+      { "flag": "-f <file>", "desc_ja": "操作対象のアーカイブファイル名を指定", "desc_en": "Specify archive file name" }
+    ],
+    "examples": [
+      { "description_ja": "フォルダを .tar.gz 形式で圧縮する", "description_en": "Compress folder into .tar.gz", "command": "tar -czvf my_backup.tar.gz ./my_project" },
+      { "description_ja": "圧縮アーカイブを現在のディレクトリに解凍する", "description_en": "Extract .tar.gz to current directory", "command": "tar -xzvf my_backup.tar.gz" },
+      { "description_ja": "解凍せずにアーカイブ内の一覧を確認する", "description_en": "List archive files without extracting", "command": "tar -tzvf my_backup.tar.gz" }
+    ]
+  },
+  {
+    "command": "w3m",
+    "category_ja": "ネットワーク・通信",
+    "category_en": "Network & HTTP",
+    "summary_ja": "ターミナル上で動作する高速なテキストWebブラウザおよびHTMLページャー",
+    "summary_en": "Fast terminal text-based pager and web browser rendering HTML tables and links",
+    "description_ja": "C言語製でミリ秒単位で起動します。HTMLテーブルの罫線表示、ハイパーリンク、整形レンダリングに対応しており、APIレスポンスのプレビューにも最適です。",
+    "description_en": "Extremely fast terminal browser and pager that cleanly formats HTML tables, links, and documents in ANSI color.",
+    "syntax": "w3m [options] [URL/file]",
+    "options": [
+      { "flag": "-dump", "desc_ja": "標準出力に整形済みテキストを一括出力", "desc_en": "Dump formatted text to stdout non-interactively" },
+      { "flag": "-T <mime>", "desc_ja": "ドキュメントタイプを明示指定 (text/html)", "desc_en": "Specify document MIME type explicitly" }
+    ],
+    "examples": [
+      { "description_ja": "HTMLファイルをターミナルに美しく整形して表示する", "description_en": "Format HTML file and print to terminal", "command": "w3m -dump page.html" },
+      { "description_ja": "curlのレスポンスHTMLをパイプで即時プレビューする", "description_en": "Pipe curl HTML response directly to preview", "command": "curl -s https://example.com | w3m -dump -T text/html" }
+    ]
+  },
+  {
+    "command": "req",
+    "category_ja": "自作開発ツール",
+    "category_en": "Custom Tools",
+    "summary_ja": "SQLite履歴・変数・HTMLプレビュー対応の対話型CLI HTTPクライアント",
+    "summary_en": "Interactive CLI HTTP client with SQLite history, project variables, and HTML preview",
+    "description_ja": "curlのパラメータ指定の煩わしさを解消するウィザード形式のHTTPテストツールです。プロジェクト変数({{baseUrl}})、クエリパラメータ個別編集、レスポンスのw3m整形、直前リクエストのワンタッチ再送をサポートします。",
+    "description_en": "Step-by-step interactive CLI HTTP client. Features project variables ({{baseUrl}}), persistent SQLite logging, domain history replay, and instant HTML previews.",
+    "syntax": "req [or http-cli]",
+    "options": [
+      { "flag": "(interactive)", "desc_ja": "1-9キーによるエンター不要の即時操作", "desc_en": "Instant single-key navigation without pressing Enter" },
+      { "flag": "{{var}}", "desc_ja": "プロジェクト変数の自動置換", "desc_en": "Auto-interpolates project variables across URL, headers, and body" }
+    ],
+    "examples": [
+      { "description_ja": "対話型ウィザードを起動して新規リクエストを作成する", "description_en": "Launch request wizard", "command": "req" },
+      { "description_ja": "ドメイン名で過去のリクエスト履歴を検索して即時再送する", "description_en": "Search and replay past requests by domain", "command": "req (select [2] Search History)" }
+    ]
+  },
+  {
+    "command": "deploy.py",
+    "category_ja": "自作開発ツール",
+    "category_en": "Custom Tools",
+    "summary_ja": "プルバックアップ・事前検証・アトミック転送対応の安全FTP/SFTPデプロイツール",
+    "summary_en": "Safe FTP/SFTP deployment tool with pre-flight check, pull-backup, and atomic swap",
+    "description_ja": "サーバーサイドにGitがない旧来のFTP/SFTP環境において、アップロード前にリモートの旧ファイルを自動バックアップし、一時ディレクトリ経由で安全にファイル配備を行います。",
+    "description_en": "Zero-risk deployment utility for FTP/SFTP. Downloads remote files before overwriting, uploads to .deploy_tmp, and generates manifest.json audit logs.",
+    "syntax": "python3 deploy.py [or deploy]",
+    "options": [
+      { "flag": "deploy_config.json", "desc_ja": "ホスト・認証情報・リモートパスを定義", "desc_en": "Configuration file specifying credentials and host" }
+    ],
+    "examples": [
+      { "description_ja": "事前検証画面を確認した上で安全デプロイを実行する", "description_en": "Run pre-flight check and atomic deploy", "command": "python3 deploy.py" }
+    ]
+  },
+  {
+    "command": "rollback.py",
+    "category_ja": "自作開発ツール",
+    "category_en": "Custom Tools",
+    "summary_ja": "manifest.jsonに基づく自動復旧・ワンクリックロールバックツール",
+    "summary_en": "One-click deployment rollback utility powered by manifest.json audit logs",
+    "description_ja": "deploy.pyで生成された最新のmanifest.jsonを解析し、バックアップ済み旧ファイルを元に戻し、新規追加された不要ファイルを削除してデプロイ前の状態に完全復元します。",
+    "description_en": "Parses deployment manifest.json, restores original files from timestamped backup folders, and removes newly deployed orphan files.",
+    "syntax": "python3 rollback.py [or deploy-rollback]",
+    "options": [
+      { "flag": "--manifest <path>", "desc_ja": "復元対象のmanifest.jsonを指定", "desc_en": "Specify manifest file to rollback" }
+    ],
+    "examples": [
+      { "description_ja": "直前のデプロイを即座にロールバックして元に戻す", "description_en": "Instantly revert latest deployment", "command": "python3 rollback.py" }
+    ]
+  },
+  {
+    "command": "backup.sh",
+    "category_ja": "自作開発ツール",
+    "category_en": "Custom Tools",
+    "summary_ja": "Linux/WSLのパッケージリスト・dotfiles・ワークスペース自動バックアップスクリプト",
+    "summary_en": "Automated workstation backup script exporting packages, dotfiles, and workspace",
+    "description_ja": "現在システムにインストールされているCLIパッケージ、VSCode拡張機能、~/.zshrc等の設定ファイルを抽出し、Gitコミット可能な形式で保存します。",
+    "description_en": "Exports installed packages, VSCode extensions, shell dotfiles, and non-git workspace assets into versioned repository files.",
+    "syntax": "bash backup.sh",
+    "options": [],
+    "examples": [
+      { "description_ja": "現在の環境設定を一括バックアップする", "description_en": "Execute full workstation environment backup", "command": "bash backup.sh" }
+    ]
+  },
+  {
+    "command": "restore.sh",
+    "category_ja": "自作開発ツール",
+    "category_en": "Custom Tools",
+    "summary_ja": "各種Linuxディストリビューションに対応した開発環境・自作CLI自動復元スクリプト",
+    "summary_en": "Cross-distro environment restoration script installing packages, dotfiles, and CLI tools",
+    "description_ja": "apt/dnf/pacman/zypper/apkを自動判定してパッケージを一括インストールし、dotfilesを展開した上で、reqやdeploy等の自作ツールを~/.local/binにセットアップします。",
+    "description_en": "Detects OS package manager (dnf, apt, pacman), batch installs dependencies from packages.txt, unpacks dotfiles, and links CLI utilities into ~/.local/bin.",
+    "syntax": "bash restore.sh",
+    "options": [],
+    "examples": [
+      { "description_ja": "新規マシンやWSL上で環境の完全復元を実行する", "description_en": "Run full automated environment restoration", "command": "bash restore.sh" }
+    ]
+  },
+  {
+    "command": "eza",
+    "category_ja": "モダンCLI拡張",
+    "category_en": "Modern CLI",
+    "summary_ja": "カラー表示・Gitステータス・Nerd Fontsアイコン対応のモダンなls代替コマンド",
+    "summary_en": "Modern replacement for ls with colors, git status badges, and Nerd Fonts icons",
+    "description_ja": "Rust製で高速に動作し、ファイル種別ごとのカラフルなアイコン表示、拡張属性、権限、Gitステータスを一目で視認できる次世代ファイル一覧ツールです。",
+    "description_en": "High-performance Rust-powered file listing utility with tree views, git staging status, and filetype iconography.",
+    "syntax": "eza [options] [path]",
+    "options": [
+      { "flag": "-l, --long", "desc_ja": "詳細情報を行形式で表示", "desc_en": "Use a long listing format" },
+      { "flag": "-a, --all", "desc_ja": "隠しファイルも含めて表示", "desc_en": "List all files including hidden" },
+      { "flag": "--icons", "desc_ja": "Nerd Fontsアイコンを表示", "desc_en": "Display filetype Nerd Fonts icons" },
+      { "flag": "--git", "desc_ja": "Gitステータスを付加表示", "desc_en": "List each file's Git status" }
+    ],
+    "examples": [
+      { "description_ja": "アイコンとGitステータス付きで詳細一覧を表示する", "description_en": "List files with icons and git status", "command": "eza -la --icons --git" },
+      { "description_ja": "ディレクトリをツリー表示する", "description_en": "Display directory tree", "command": "eza -T --icons -L 2" }
+    ]
+  },
+  {
+    "command": "bat",
+    "category_ja": "モダンCLI拡張",
+    "category_en": "Modern CLI",
+    "summary_ja": "シンタックスハイライト・Git差分・行番号表示対応のモダンなcat代替コマンド",
+    "summary_en": "Cat clone with syntax highlighting, git integration, and automatic paging",
+    "description_ja": "あらゆるプログラミング言語の構文強調表示、Gitで変更された行のマーキング、lessスタイルの自動ページャー機能を備えた高機能ファイル閲覧ツールです。",
+    "description_en": "Rust cat alternative supporting syntax highlighting for hundreds of languages, git diff gutter indicators, and line numbers.",
+    "syntax": "bat [options] <file>",
+    "options": [
+      { "flag": "-p, --plain", "desc_ja": "装飾なしのプレーンテキスト出力", "desc_en": "Plain mode (similar to standard cat)" },
+      { "flag": "-l <lang>", "desc_ja": "ハイライト言語を明示指定", "desc_en": "Set syntax language explicitly" }
+    ],
+    "examples": [
+      { "description_ja": "色付きで行番号・枠線付きでコードを閲覧する", "description_en": "View code file with syntax highlighting", "command": "bat config.json" },
+      { "description_ja": "パイプ処理用に装飾を省いて出力する", "description_en": "Output plain text without line decorations", "command": "bat -p script.py" }
+    ]
+  },
+  {
+    "command": "fzf",
+    "category_ja": "モダンCLI拡張",
+    "category_en": "Modern CLI",
+    "summary_ja": "高速・軽量なコマンドライン対話型インクリメンタル曖昧検索ファジーファインダー",
+    "summary_en": "General-purpose command-line fuzzy finder with instant interactive filtering",
+    "description_ja": "ファイル一覧、コマンド履歴、Gitコミット、プロセス一覧などをタイプしながら瞬時に絞り込み、選択した結果を別のコマンドに渡すパイプラインを構築できます。",
+    "description_en": "Blazing fast interactive fuzzy finder usable with any list: files, command history, processes, or git branches.",
+    "syntax": "fzf [options]",
+    "options": [
+      { "flag": "--preview '<cmd>'", "desc_ja": "選択項目の中身を横のプレビュー画面に表示", "desc_en": "Execute preview command for highlighted item" },
+      { "flag": "-m, --multi", "desc_ja": "Tabキーによる複数項目の同時選択", "desc_en": "Enable multi-selection with Tab key" }
+    ],
+    "examples": [
+      { "description_ja": "ファイルを対話型検索してエディタで開く", "description_en": "Fuzzy find file and open in vim", "command": "vim $(fzf)" },
+      { "description_ja": "batによるリアルタイムプレビュー付きで検索する", "description_en": "Fuzzy find with syntax preview", "command": "fzf --preview 'bat --style=numbers --color=always {}'" }
+    ]
+  },
+  {
+    "command": "rg",
+    "category_ja": "モダンCLI拡張",
+    "category_en": "Modern CLI",
+    "summary_ja": "ripgrep - .gitignoreを自動尊重し超高速にコード全文検索を行うgrep代替",
+    "summary_en": "Line-oriented search tool recursively searching directories respecting .gitignore",
+    "description_ja": "Rust製の並列検索エンジンにより、巨大なリポジトリでも瞬時に文字列をヒットさせます。デフォルトで.gitignoreやバイナリファイルをスキップするため快適です。",
+    "description_en": "Ripgrep combines the usability of The Silver Searcher with the raw speed of GNU grep, recursively searching codebases while ignoring hidden and gitignored files.",
+    "syntax": "rg [options] '<pattern>' [path]",
+    "options": [
+      { "flag": "-i, --ignore-case", "desc_ja": "大文字と小文字を区別せずに検索", "desc_en": "Case-insensitive search" },
+      { "flag": "-w, --word-regexp", "desc_ja": "単語全体に一致する場合のみヒット", "desc_en": "Match whole word only" },
+      { "flag": "-t <type>", "desc_ja": "特定ファイルタイプのみを対象に検索", "desc_en": "Search only files of specific type (e.g. -t py, -t rust)" }
+    ],
+    "examples": [
+      { "description_ja": "プロジェクト全体から特定の関数名を検索する", "description_en": "Search function name across entire codebase", "command": "rg 'get_project_variables'" },
+      { "description_ja": "Pythonファイルのみを大文字小文字無視で検索", "description_en": "Case-insensitive search inside python files", "command": "rg -i -t py 'execute_and_record'" }
+    ]
+  },
+  {
+    "command": "glow",
+    "category_ja": "モダンCLI拡張",
+    "category_en": "Modern CLI",
+    "summary_ja": "ターミナル上でMarkdown文書を美しくレンダリングして閲覧するCLIビューアー",
+    "summary_en": "Terminal-based markdown reader rendering tables, codeblocks, and headers",
+    "description_ja": "見出し、コードブロック、太字、リスト、テーブル、ハイパーリンクをターミナル内で装飾・整形して表示します。README.md の閲覧に最適です。",
+    "description_en": "Renders markdown files with beautiful terminal styling, code syntax highlighting, and paging.",
+    "syntax": "glow [options] [file/URL]",
+    "options": [
+      { "flag": "-p, --pager", "desc_ja": "長文ドキュメントをページャーで閲覧", "desc_en": "Display with pager" },
+      { "flag": "-s <style>", "desc_ja": "カラーテーマ（dark, light等）を指定", "desc_en": "Specify color style (dark, light)" }
+    ],
+    "examples": [
+      { "description_ja": "README.md をページャー付きで綺麗に閲覧する", "description_en": "View README with terminal markdown formatting", "command": "glow -p README.md" }
+    ]
+  }
+]

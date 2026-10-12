@@ -195,6 +195,23 @@ prompt_test = generate_ai_prompt(["nginx", "docker"])
 assert "nginx" in prompt_test and "docker" in prompt_test, "Prompt generator should include target packages"
 print("Verified AI Prompt generator output format.")
 
+# 11. Rust Help Desk Binary Verification
+rust_bin = Path("crates/help-desk/target/release/help-desk")
+if rust_bin.is_file():
+    import subprocess
+    print("\n" + "="*60)
+    print("🦀 Verifying Rust Help Desk Native Binary:")
+    print("="*60)
+    proc_list = subprocess.run([str(rust_bin), "--list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc_list.returncode == 0, "Rust binary --list should exit 0"
+    assert "tar" in proc_list.stdout and "req" in proc_list.stdout, "Rust binary list should include tar and req"
+    print("Verified Rust binary: --list successfully returned documented tools.")
+
+    proc_tar = subprocess.run([str(rust_bin), "tar"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc_tar.returncode == 0, "Rust binary 'tar' lookup should exit 0"
+    assert "アーカイブ" in proc_tar.stdout, "Rust binary card should include Japanese documentation"
+    print("Verified Rust binary: direct lookup 'help-desk tar' output.")
+
 print("="*60)
 print("🎉 All integration and Help Desk tests completed successfully!")
 

@@ -49,17 +49,49 @@ def cprint(text, color="", bold=False, end="\n"):
 # ==========================================
 DB_PATH = Path(os.environ.get("HELP_DESK_DB", str(Path.home() / ".help_desk.db")))
 
+def ensure_schema(conn):
+    try:
+        conn.execute("ALTER TABLE commands ADD COLUMN category TEXT DEFAULT ''")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE commands ADD COLUMN category_ja TEXT DEFAULT ''")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE commands ADD COLUMN category_en TEXT DEFAULT ''")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE commands ADD COLUMN summary_en TEXT DEFAULT ''")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE commands ADD COLUMN description_en TEXT DEFAULT ''")
+    except Exception:
+        pass
+    try:
+        with conn:
+            conn.execute("UPDATE commands SET category = category_ja WHERE (category = '' OR category IS NULL) AND category_ja != ''")
+            conn.execute("UPDATE commands SET category_ja = category WHERE (category_ja = '' OR category_ja IS NULL) AND category != ''")
+            conn.execute("UPDATE commands SET category = '自作開発ツール' WHERE category = '自作开发工具'")
+            conn.execute("UPDATE commands SET category_ja = '自作開発ツール' WHERE category_ja = '自作开发工具'")
+    except Exception:
+        pass
+
 def get_db():
     global DB_PATH
     try:
         conn = sqlite3.connect(str(DB_PATH))
         conn.row_factory = sqlite3.Row
+        ensure_schema(conn)
         return conn
     except sqlite3.OperationalError:
         fallback = Path.cwd() / ".help_desk.db"
         DB_PATH = fallback
         conn = sqlite3.connect(str(DB_PATH))
         conn.row_factory = sqlite3.Row
+        ensure_schema(conn)
         return conn
 
 def init_db():
@@ -68,10 +100,14 @@ def init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS commands (
                 command TEXT PRIMARY KEY,
-                category TEXT NOT NULL,
-                summary_ja TEXT NOT NULL,
-                description_ja TEXT NOT NULL,
-                syntax TEXT NOT NULL,
+                category TEXT DEFAULT '',
+                category_ja TEXT DEFAULT '',
+                category_en TEXT DEFAULT '',
+                summary_ja TEXT DEFAULT '',
+                summary_en TEXT DEFAULT '',
+                description_ja TEXT DEFAULT '',
+                description_en TEXT DEFAULT '',
+                syntax TEXT DEFAULT '',
                 options_json TEXT,
                 examples_json TEXT,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -85,6 +121,15 @@ def init_db():
                 recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Ensure category columns exist if created previously
+        try:
+            conn.execute("ALTER TABLE commands ADD COLUMN category TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE commands ADD COLUMN category_ja TEXT DEFAULT ''")
+        except Exception:
+            pass
     conn.close()
 
 def auto_seed_if_empty():
@@ -121,26 +166,27 @@ def import_json_data(json_file_path, silent=False):
     with conn:
         for item in data:
             cmd = item.get("command", "").strip()
-            cat = item.get("category", "General").strip()
-            summary = item.get("summary_ja", "").strip()
-            desc = item.get("description_ja", "").strip()
+            cat = item.get("category", "").strip() or item.get("category_ja", "General").strip()
+            summary = item.get("summary_ja", "").strip() or item.get("summary", "").strip()
+            desc = item.get("description_ja", "").strip() or item.get("description", "").strip()
             syntax = item.get("syntax", "").strip()
             options = json.dumps(item.get("options", []), ensure_ascii=False)
             examples = json.dumps(item.get("examples", []), ensure_ascii=False)
 
             if cmd:
                 conn.execute("""
-                    INSERT INTO commands (command, category, summary_ja, description_ja, syntax, options_json, examples_json, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    INSERT INTO commands (command, category, category_ja, summary_ja, description_ja, syntax, options_json, examples_json, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                     ON CONFLICT(command) DO UPDATE SET
                         category = excluded.category,
+                        category_ja = excluded.category_ja,
                         summary_ja = excluded.summary_ja,
                         description_ja = excluded.description_ja,
                         syntax = excluded.syntax,
                         options_json = excluded.options_json,
                         examples_json = excluded.examples_json,
                         updated_at = CURRENT_TIMESTAMP
-                """, (cmd, cat, summary, desc, syntax, options, examples))
+                """, (cmd, cat, cat, summary, desc, syntax, options, examples))
                 count += 1
     conn.close()
     if not silent:
@@ -150,7 +196,7 @@ def import_json_data(json_file_path, silent=False):
 def get_command(command_name):
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM commands WHERE command = ?", (command_name.strip(),))
+    cur.execute("SELECT command, COALESCE(NULLIF(category, ''), category_ja, 'General') as category, summary_ja, description_ja, syntax, options_json, examples_json, updated_at FROM commands WHERE command = ?", (command_name.strip(),))
     row = cur.fetchone()
     conn.close()
     return row
@@ -158,7 +204,7 @@ def get_command(command_name):
 def get_all_commands():
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT command, category, summary_ja FROM commands ORDER BY command ASC")
+    cur.execute("SELECT command, COALESCE(NULLIF(category, ''), category_ja, 'General') as category, summary_ja FROM commands ORDER BY command ASC")
     rows = cur.fetchall()
     conn.close()
     return rows
@@ -166,7 +212,7 @@ def get_all_commands():
 def get_categories():
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT category, COUNT(*) as cnt FROM commands GROUP BY category ORDER BY cnt DESC, category ASC")
+    cur.execute("SELECT COALESCE(NULLIF(category, ''), category_ja, 'General') as category, COUNT(*) as cnt FROM commands GROUP BY 1 ORDER BY cnt DESC, category ASC")
     rows = cur.fetchall()
     conn.close()
     return rows
@@ -174,7 +220,7 @@ def get_categories():
 def get_commands_by_category(category_name):
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT command, summary_ja FROM commands WHERE category = ? ORDER BY command ASC", (category_name,))
+    cur.execute("SELECT command, summary_ja FROM commands WHERE COALESCE(NULLIF(category, ''), category_ja, 'General') = ? ORDER BY command ASC", (category_name,))
     rows = cur.fetchall()
     conn.close()
     return rows
@@ -184,7 +230,7 @@ def search_commands(keyword):
     cur = conn.cursor()
     kw = f"%{keyword.strip()}%"
     cur.execute("""
-        SELECT command, category, summary_ja FROM commands
+        SELECT command, COALESCE(NULLIF(category, ''), category_ja, 'General') as category, summary_ja FROM commands
         WHERE command LIKE ? OR summary_ja LIKE ? OR description_ja LIKE ? OR options_json LIKE ?
         ORDER BY command ASC
     """, (kw, kw, kw, kw))
