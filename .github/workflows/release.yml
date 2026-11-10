@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Artifacts (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            artifact_name: hdesk-v0.1.0-x86_64-unknown-linux-musl.tar.gz
+          - os: macos-15
+            target: aarch64-apple-darwin
+            artifact_name: hdesk-v0.1.0-aarch64-apple-darwin.tar.gz
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Linux build dependencies (musl-tools)
+        if: matrix.os == 'ubuntu-24.04'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@315a6b093392437604f2f01f0535e610d4ffaa12 # 1.95.0
+        with:
+          toolchain: 1.95.0
+          targets: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: |
+          cd crates/help-desk
+          cargo build --locked --release --target ${{ matrix.target }}
+
+      - name: Package release archive
+        run: |
+          mkdir -p dist
+          BIN_PATH="crates/help-desk/target/${{ matrix.target }}/release/hdesk"
+          tar -czvf "dist/${{ matrix.artifact_name }}" -C "$(dirname "$BIN_PATH")" hdesk
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb99736d90 # v4.6.1
+        with:
+          name: ${{ matrix.target }}
+          path: dist/${{ matrix.artifact_name }}
+
+  attest-and-draft-release:
+    name: Attest & Draft Release
+    needs: [build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        with:
+          path: artifacts
+
+      - name: Aggregate and compute SHA256SUMS
+        id: checksums
+        run: |
+          mkdir -p release_assets
+          find artifacts -name "*.tar.gz" -exec cp {} release_assets/ \;
+          cd release_assets
+          sha256sum *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Attest Artifact Provenance
+        uses: actions/attest-build-provenance@c074443f1a5fb4aee8390470230f89a9c1b93d12 # v2.2.2
+        with:
+          subject-path: release_assets/*.tar.gz
+
+      - name: Create Draft Release on GitHub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME:-v0.1.0}"
+          gh release create "$TAG" release_assets/* \
+            --draft \
+            --title "Personal CLI Help Desk $TAG" \
+            --notes "Draft release for Personal CLI Help Desk ($TAG). Please verify SHA256SUMS, attach offline GPG detached signature (SHA256SUMS.asc), and inspect artifact attestations before publishing."

@@ -108,23 +108,41 @@ Specialized tools built into the repository to enhance daily developer productiv
      - Provides an interactive post-response action menu to switch engines, immediately re-render, inspect raw HTML, or cleanly exit.
   8. **Global CLI Alias**: Integrated into `dotfiles/.zshrc` and `restore.sh` as `req` / `http-cli`.
 
-### 7.4. Personal CLI Help Desk & Incremental Update Trigger (help_desk.py / sys_update.sh)
-- **Problem**: Standard `man` pages and `--help` outputs are dense, text-heavy, mostly in English, and lack practical examples. Developers need a localized (Japanese) cheat-sheet catalog tailored exclusively to the tools they have installed, including custom scripts.
-- **Architecture**:
-  1. **Zero External Dependencies**: Pure Python 3 and SQLite (`~/.help_desk.db`) storing structured Japanese reference cards.
-  2. **Multi-dimensional Exploration**:
-     - Browse by Category (`ファイル操作・圧縮`, `ネットワーク・通信`, `自作開発ツール`, `システム監視・プロセス`, `開発・エディタ`, `モダンCLI拡張`).
-     - Browse Alphabetically (A-Z).
-     - Full-text keyword search across commands, Japanese summaries, descriptions, and option flags.
-     - Direct cheat card lookup: `help-desk <command>` (e.g. `help-desk tar` or `hdesk req`).
-  3. **Strict JSON Schema (`help_schema.json`)**: Formally defines the structure of command documentation (syntax, flags, practical examples).
-  4. **Incremental Web AI Prompt Generator**:
-     - Compares system/repo packages against Help Desk SQLite records.
-     - Extracts only incremental (undocumented or upgraded) packages to prevent redundant prompt tokens.
-     - Generates copy-pasteable prompt and schema for web AI (ChatGPT/Claude/Gemini).
-  5. **Batch Importer**: `help-desk --import <file.json>` imports AI-generated batches and refreshes the catalog instantly.
-  6. **Distro-Aware System Update Trigger (`sys_update.sh` / `sys-update`)**:
-     - Automatically identifies package manager (`dnf`, `apt-get`, `pacman`, `zypper`, `apk`, `brew`).
-     - Performs system upgrades and calculates which packages were upgraded.
-     - Interactively prompts to update the Help Desk and generates the AI prompt for incremental packages.
-  7. **Global CLI Aliases**: Integrated into `dotfiles/.zshrc` and `restore.sh` as `help-desk`, `hdesk`, and `sys-update`.
+### 7.4. Personal CLI Help Desk v0.1 (Rust)
+- **Problem**: Standard help pages do not reflect the user's actual command habits, custom Zsh functions, aliases, or globally installed language tools. The user needs one local catalog of the CLI commands that are really available and personally useful.
+- **Version boundary**:
+  - Product milestone: `0.1`; Cargo version: `0.1.0`; Git tag: `v0.1.0`.
+  - Rust-only runtime. Python is not a supported entry point or fallback.
+  - Single-language UTF-8 catalog. Multi-language UI, TUI, package upgrades, online AI APIs, and legacy database recovery are outside v0.1.
+  - No daemon, cron, login-triggered scan, or daily polling. Inventory refresh and comparison are manually initiated, typically when the user chooses to review changes after several months.
+  - There is no production catalog data yet. The new implementation must not read, migrate, modify, or delete the legacy `~/.help_desk.db`.
+- **Core workflow**:
+  1. Scan global/user-level CLI sources without modifying the environment.
+  2. Produce an immutable, reviewable snapshot with command origin, provider package version, command set, path, adapter status, and confidence.
+  3. Export a minimized and redacted JSON file for an external AI to add a short summary, syntax, tags, and practical examples.
+  4. Validate the enriched JSON and import the complete batch transactionally.
+  5. Query the local catalog with `hdesk <command>`, `hdesk list`, and `hdesk search`.
+  6. On a later manual scan, compare snapshots and export only added or changed commands for review; unchanged catalog entries remain untouched.
+- **Discovery sources**:
+  - User/global executable directories and standalone binaries.
+  - Zsh aliases and user-authored functions, excluding framework/plugin/system functions by default.
+  - Python global/user `console_scripts`, pipx installed apps, and persistently installed uv tools.
+  - Rust binaries installed by `cargo install`.
+  - npm global packages that actually expose a `bin` entry.
+  - Composer global packages that actually expose a CLI in the global bin directory.
+  - Go global binary discovery is deferred unless explicitly brought into v0.1.
+- **Scope guard**: Never scan project `.venv`, `node_modules`, Composer `vendor`, Cargo `target`, or per-project dependency graphs. Package names and command names are separate concepts, and one package may provide several commands.
+- **Safety**:
+  - Scanning is read-only and does not install, update, remove, or execute discovered tools.
+  - Raw alias/function definitions remain local; AI export must redact tokens, credentials, private URLs, SSH keys, and unapproved function bodies.
+  - Import is all-or-nothing after schema validation. AI output cannot invent command IDs that were not present in the inventory.
+  - A package version change marks its commands as `needs_review`; it does not prove that CLI behavior changed. Descriptions are updated only with explicit evidence.
+  - A missing package or command is never auto-deleted from the catalog. Incomplete adapter results cannot be interpreted as removals.
+- **Release targets**:
+  - Linux AMD64: `x86_64-unknown-linux-musl`.
+  - macOS Apple Silicon: `aarch64-apple-darwin`.
+  - GitHub Release assets include both binaries, `SHA256SUMS`, `SHA256SUMS.asc`, the public release key, and GitHub Artifact Attestations.
+  - The milestone is complete only after native-platform smoke tests, GPG verification, checksum verification, and attestation verification pass.
+- **Detailed specifications**:
+  - Product and delivery specification: [`docs/help-desk-v0.1-spec.md`](docs/help-desk-v0.1-spec.md)
+  - AI implementation prompt: [`docs/prompts/help-desk-v0.1-implementation.md`](docs/prompts/help-desk-v0.1-implementation.md)

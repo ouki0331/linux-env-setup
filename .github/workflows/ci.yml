@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  check-and-test:
+    name: Check, Lint & Test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@315a6b093392437604f2f01f0535e610d4ffaa12 # 1.95.0
+        with:
+          toolchain: 1.95.0
+          components: clippy, rustfmt
+
+      - name: Verify Formatting
+        run: |
+          cd crates/help-desk
+          cargo fmt --check
+
+      - name: Run Clippy Lints
+        run: |
+          cd crates/help-desk
+          cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Run All Tests
+        run: |
+          cd crates/help-desk
+          cargo test --locked --all-targets

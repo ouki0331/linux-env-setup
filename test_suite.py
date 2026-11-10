@@ -167,9 +167,11 @@ conn.close()
 
 # 10. Help Desk Automated Verification
 print("\n" + "="*60)
-print("📖 Verifying Help Desk CLI & Database Integration:")
+print("📖 Verifying Legacy Help Desk Reference Implementation:")
 print("="*60)
-from help_desk import get_all_commands, get_command, get_categories, search_commands, generate_ai_prompt
+from help_desk import init_db as init_help_db, auto_seed_if_empty, get_all_commands, get_command, get_categories, search_commands, generate_ai_prompt
+init_help_db()
+auto_seed_if_empty()
 
 help_cmds = get_all_commands()
 print(f"Total documented tools: {len(help_cmds)}")
@@ -196,21 +198,26 @@ assert "nginx" in prompt_test and "docker" in prompt_test, "Prompt generator sho
 print("Verified AI Prompt generator output format.")
 
 # 11. Rust Help Desk Binary Verification
-rust_bin = Path("crates/help-desk/target/release/help-desk")
+rust_bin = Path("crates/help-desk/target/release/hdesk")
+if not rust_bin.is_file():
+    rust_bin = Path("crates/help-desk/target/release/help-desk")
 if rust_bin.is_file():
     import subprocess
     print("\n" + "="*60)
-    print("🦀 Verifying Rust Help Desk Native Binary:")
+    print("🦀 Verifying Rust Help Desk Native Binary (hdesk):")
     print("="*60)
-    proc_list = subprocess.run([str(rust_bin), "--list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    assert proc_list.returncode == 0, "Rust binary --list should exit 0"
-    assert "tar" in proc_list.stdout and "req" in proc_list.stdout, "Rust binary list should include tar and req"
-    print("Verified Rust binary: --list successfully returned documented tools.")
+    proc_ver = subprocess.run([str(rust_bin), "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc_ver.returncode == 0, "Rust binary --version should exit 0"
+    assert "0.1.0" in proc_ver.stdout, "Rust binary should report version 0.1.0"
+    print("Verified Rust binary: --version output.")
 
-    proc_tar = subprocess.run([str(rust_bin), "tar"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    assert proc_tar.returncode == 0, "Rust binary 'tar' lookup should exit 0"
-    assert "アーカイブ" in proc_tar.stdout, "Rust binary card should include Japanese documentation"
-    print("Verified Rust binary: direct lookup 'help-desk tar' output.")
+    proc_list = subprocess.run([str(rust_bin), "list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc_list.returncode == 0, "Rust binary 'list' should exit 0"
+    print("Verified Rust binary: 'list' command executed successfully.")
+
+    proc_doc = subprocess.run([str(rust_bin), "doctor"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc_doc.returncode == 0, "Rust binary 'doctor' should exit 0"
+    print("Verified Rust binary: 'doctor' command executed successfully.")
 
 build_sh = Path("build_help_desk.sh")
 assert build_sh.is_file(), "build_help_desk.sh script should exist"

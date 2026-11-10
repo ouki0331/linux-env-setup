@@ -1,13 +1,34 @@
 [package]
-name = "help-desk"
+name = "hdesk"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.95"
+description = "Personal CLI help desk: discover your global CLI tools and query a local command catalog"
+license = "MIT"
+publish = false
+
+[lib]
+name = "hdesk"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hdesk"
+path = "src/main.rs"
 
 [dependencies]
-crossterm = "0.28"
-ratatui = "0.29"
-fuzzy-matcher = "0.3"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-rusqlite = { version = "0.32", features = ["bundled"] }
-chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+toml = "0.8"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

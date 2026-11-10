@@ -64,18 +64,19 @@ mkdir -p ~/.local/bin
 [ -f "http_cli.py" ] && cp http_cli.py ~/.local/bin/http_cli.py && chmod +x ~/.local/bin/http_cli.py && ln -sf ~/.local/bin/http_cli.py ~/.local/bin/req && echo "Installed global CLI tool: req (http_cli.py)"
 [ -f "deploy.py" ] && cp deploy.py ~/.local/bin/deploy.py && chmod +x ~/.local/bin/deploy.py && echo "Installed deploy tool: deploy.py"
 [ -f "rollback.py" ] && cp rollback.py ~/.local/bin/rollback.py && chmod +x ~/.local/bin/rollback.py && echo "Installed rollback tool: rollback.py"
-[ -f "help_desk.py" ] && cp help_desk.py ~/.local/bin/help_desk.py && chmod +x ~/.local/bin/help_desk.py && ln -sf ~/.local/bin/help_desk.py ~/.local/bin/help-desk && ln -sf ~/.local/bin/help_desk.py ~/.local/bin/hdesk && echo "Installed Help Desk tool: help-desk (hdesk)"
+
+# Build and register official hdesk Rust binary
 if [ -f "./build_help_desk.sh" ]; then
     ./build_help_desk.sh || true
 elif command -v cargo &> /dev/null && [ -f "crates/help-desk/Cargo.toml" ]; then
-    echo "Building high-performance Help Desk (Rust TUI) via cargo..."
+    echo "Building high-performance Help Desk (hdesk) via cargo..."
     cargo build --release --manifest-path crates/help-desk/Cargo.toml
 fi
-if [ -f "crates/help-desk/target/release/help-desk" ]; then
-    cp crates/help-desk/target/release/help-desk ~/.local/bin/help-desk
-    chmod +x ~/.local/bin/help-desk
-    ln -sf ~/.local/bin/help-desk ~/.local/bin/hdesk
-    echo "Registered native Rust TUI: ~/.local/bin/help-desk"
+if [ -f "crates/help-desk/target/release/hdesk" ]; then
+    cp crates/help-desk/target/release/hdesk ~/.local/bin/hdesk
+    chmod +x ~/.local/bin/hdesk
+    ln -sf ~/.local/bin/hdesk ~/.local/bin/help-desk
+    echo "Registered native Rust CLI: ~/.local/bin/hdesk (symlinked to help-desk)"
 fi
 [ -f "sys_update.sh" ] && cp sys_update.sh ~/.local/bin/sys_update.sh && chmod +x ~/.local/bin/sys_update.sh && ln -sf ~/.local/bin/sys_update.sh ~/.local/bin/sys-update && echo "Installed update tool: sys-update (sys_update.sh)"
 [ -f "help_data_ja.json" ] && cp help_data_ja.json ~/.local/bin/help_data_ja.json && echo "Copied initial seed Help Desk catalog: help_data_ja.json"
